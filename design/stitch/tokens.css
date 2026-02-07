@@ -1,0 +1,57 @@
+/* Design Tokens - Generated from Stitch */
+
+:root {
+    /* Primary Colors */
+    --color-primary: #0ddff2;
+    --color-primary-hover: #0bc5d6;
+    --color-primary-light: #e0f7fa;
+
+    /* Background Colors */
+    --color-bg-light: #f8fafc;
+    --color-bg-dark: #0f172a;
+    --color-surface: #ffffff;
+    --color-surface-dark: #1e293b;
+
+    /* Text Colors */
+    --color-text: #0f172a;
+    --color-text-dark: #f8fafc;
+    --color-text-muted: #64748b;
+
+    /* Status Colors */
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+
+    /* Border Colors */
+    --color-border: #e2e8f0;
+    --color-border-dark: #334155;
+
+    /* Typography */
+    --font-heading: 'Lexend', sans-serif;
+    --font-body: 'Public Sans', sans-serif;
+
+    /* Spacing (base: 4px) */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+
+    /* Border Radius */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
