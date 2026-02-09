@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import prisma from '../lib/prisma.js';
 import { getCourtAvailability, validateCourt } from './court.service.js';
 import { broadcast } from '../lib/websocket.js';
+import { notifyManagerNewBooking } from './notification.service.js';
 
 // ==================== TYPES ====================
 
@@ -609,6 +610,24 @@ export async function choosePaymentMethod(request: PaymentMethodRequest): Promis
             paymentMethod: paymentMethod,
         },
     });
+
+    // Phase 6: Notify manager about new booking
+    const manager = await prisma.manager.findFirst({
+        where: { venue: { id: booking.court.venueId } },
+        select: { userId: true },
+    });
+    if (manager) {
+        const venue = await prisma.venue.findUnique({
+            where: { id: booking.court.venueId },
+            select: { name: true },
+        });
+        await notifyManagerNewBooking(
+            bookingId,
+            manager.userId,
+            booking.court.venueId,
+            venue?.name || 'Sân'
+        );
+    }
 
     return {
         success: true,

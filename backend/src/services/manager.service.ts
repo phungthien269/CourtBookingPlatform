@@ -4,7 +4,8 @@
  */
 
 import prisma from '../lib/prisma.js';
-import { broadcast } from '../lib/websocket.js';
+import { broadcast, sendToUser } from '../lib/websocket.js';
+import { notifyBookingStatusChange } from './notification.service.js';
 
 // ==================== TYPES ====================
 
@@ -175,6 +176,20 @@ export async function confirmBooking(bookingId: string, managerId: string): Prom
         },
     });
 
+    // Phase 6: Notify user
+    await notifyBookingStatusChange(
+        bookingId,
+        booking.userId,
+        'BOOKING_CONFIRMED',
+        'Đặt sân được xác nhận',
+        'Quản lý đã xác nhận đơn đặt sân của bạn',
+        venueId
+    );
+    sendToUser(booking.userId, {
+        type: 'booking:updated',
+        payload: { bookingId, status: 'CONFIRMED', action: 'confirmed' },
+    });
+
     return {
         success: true,
         data: {
@@ -249,6 +264,20 @@ export async function cancelBooking(
             userId: booking.userId,
             reason: reason.trim(),
         },
+    });
+
+    // Phase 6: Notify user
+    await notifyBookingStatusChange(
+        bookingId,
+        booking.userId,
+        'BOOKING_REJECTED',
+        'Đặt sân bị từ chối',
+        `Lý do: ${reason.trim()}`,
+        venueId
+    );
+    sendToUser(booking.userId, {
+        type: 'booking:updated',
+        payload: { bookingId, status: 'CANCELLED_BY_MANAGER', action: 'rejected' },
     });
 
     return {
