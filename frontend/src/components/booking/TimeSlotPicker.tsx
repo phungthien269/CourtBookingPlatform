@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<SlotDTO['status'], string> = {
     LOCKED: 'bg-yellow-200 text-yellow-700 cursor-not-allowed',
     CLOSED: 'bg-gray-200 text-gray-500 cursor-not-allowed',
     HOLIDAY: 'bg-purple-200 text-purple-700 cursor-not-allowed',
+    HOLDING: 'bg-orange-200 text-orange-700 cursor-not-allowed',
 };
 
 export function TimeSlotPicker({

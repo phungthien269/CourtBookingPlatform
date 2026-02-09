@@ -29,6 +29,13 @@ import BookingSummaryPage from './pages/booking/BookingSummaryPage';
 // Phase 3: Payment page
 import PaymentPage from './pages/booking/PaymentPage';
 
+// Phase 4: Manager bookings page
+import ManagerBookingsPage from './pages/manager/ManagerBookingsPage';
+
+// Phase 5: Manager chat pages
+import ManagerChatInbox from './pages/manager/ManagerChatInbox';
+import ManagerChatThread from './pages/manager/ManagerChatThread';
+
 // Route guards
 function RequireAuth({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -158,11 +165,13 @@ export default function App() {
                     }
                 >
                     <Route path="/manager" element={<ManagerDashboard />} />
+                    <Route path="/manager/bookings" element={<ManagerBookingsPage />} />
                     <Route path="/manager/courts" element={<PlaceholderPage title="Quản lý sân" />} />
                     <Route path="/manager/schedule" element={<PlaceholderPage title="Lịch hoạt động" />} />
                     <Route path="/manager/analytics" element={<PlaceholderPage title="Thống kê" />} />
                     <Route path="/manager/subscription" element={<PlaceholderPage title="Gia hạn" />} />
-                    <Route path="/manager/chat/:bookingId" element={<Chat />} />
+                    <Route path="/manager/chat" element={<ManagerChatInbox />} />
+                    <Route path="/manager/chat/:threadId" element={<ManagerChatThread />} />
                 </Route>
 
                 {/* Admin routes */}

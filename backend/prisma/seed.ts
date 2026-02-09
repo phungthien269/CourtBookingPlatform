@@ -153,6 +153,10 @@ async function main() {
             description: 'Sân cầu lông và pickleball chất lượng cao, có điều hòa, sàn gỗ cao cấp. Phục vụ từ 6h sáng đến 22h tối.',
             contactPhone: '0901234567',
             status: VenueStatus.ACTIVE,
+            // Phase 4: Bank info for VietQR
+            bankName: 'Vietcombank',
+            bankAccountNumber: '1234567890',
+            bankAccountName: 'NGUYEN VAN A',
         },
     });
 
@@ -169,6 +173,10 @@ async function main() {
             description: 'Trung tâm cầu lông lớn nhất Quận 7. 8 sân tiêu chuẩn quốc tế, hệ thống ánh sáng LED cao cấp.',
             contactPhone: '0902345678',
             status: VenueStatus.ACTIVE,
+            // Phase 4: Bank info for VietQR
+            bankName: 'Techcombank',
+            bankAccountNumber: '9876543210',
+            bankAccountName: 'TRAN THI B',
         },
     });
 
@@ -185,6 +193,10 @@ async function main() {
             description: 'Câu lạc bộ tennis cao cấp với sân đất nện và sân cứng. Có huấn luyện viên chuyên nghiệp.',
             contactPhone: '0903456789',
             status: VenueStatus.ACTIVE,
+            // Phase 4: Bank info for VietQR
+            bankName: 'MBBank',
+            bankAccountNumber: '1122334455',
+            bankAccountName: 'LE VAN C',
         },
     });
 
@@ -201,6 +213,10 @@ async function main() {
             description: 'Tổ hợp thể thao đa năng: cầu lông, bóng bàn, bóng đá mini. Có canteen và chỗ đậu xe rộng rãi.',
             contactPhone: '0904567890',
             status: VenueStatus.ACTIVE,
+            // Phase 4: Bank info for VietQR
+            bankName: 'VPBank',
+            bankAccountNumber: '5566778899',
+            bankAccountName: 'PHAM THI D',
         },
     });
 

@@ -140,12 +140,12 @@ export async function getCourtAvailability(courtId: string, dateStr: string): Pr
 
     if (!court) return null;
 
-    // Step 2: Load confirmed bookings for this court+date
+    // Step 2: Load CONFIRMED and WAITING_MANAGER_CONFIRM bookings (both block slots)
     const confirmedBookings = await prisma.booking.findMany({
         where: {
             courtId,
             date: new Date(dateStr),
-            status: 'CONFIRMED',
+            status: { in: ['CONFIRMED', 'WAITING_MANAGER_CONFIRM'] },
         },
         select: { startTime: true, endTime: true },
     });
@@ -208,7 +208,7 @@ export async function getCourtAvailability(courtId: string, dateStr: string): Pr
             status = 'LOCKED';
             reason = 'Chủ sân khóa';
         }
-        // 4. Check BOOKED (overlaps confirmed booking)
+        // 4. Check BOOKED (overlaps confirmed or waiting_manager_confirm booking)
         else if (overlapsRanges(slotStart, slotEnd, confirmedBookings)) {
             status = 'BOOKED';
             reason = 'Đã được đặt';

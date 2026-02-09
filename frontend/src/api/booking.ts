@@ -259,3 +259,105 @@ export function addDaysToDate(dateStr: string, days: number): string {
     return date.toISOString().split('T')[0];
 }
 
+// ==================== PHASE 4 TYPES ====================
+
+export interface BookingDetailExtended {
+    bookingId: string;
+    status: string;
+    paymentMethod: string | null;
+    pendingExpiresAt: string | null;
+    waitingConfirmSince: string | null;
+    paymentDeclaredAt: string | null;
+    confirmedAt: string | null;
+    managerCancelReason: string | null;
+    date: string;
+    startTime: string;
+    endTime: string;
+    durationHours: number;
+    totalPrice: number;
+    court: { id: string; name: string; pricePerHour: number };
+    venue: {
+        id: string;
+        name: string;
+        address: string;
+        contactPhone: string | null;
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankAccountName: string | null;
+    };
+    user?: { id: string; name: string | null; email: string };
+}
+
+// ==================== PHASE 4 API FUNCTIONS ====================
+
+/**
+ * Get extended booking details (Phase 4)
+ */
+export async function getBookingExtended(
+    bookingId: string,
+    token: string
+): Promise<{ success: true; data: BookingDetailExtended } | { success: false; error: { code: string; message: string } }> {
+    try {
+        const response = await axios.get<ApiResponse<BookingDetailExtended>>(
+            `${API_BASE}/bookings/${bookingId}/extended`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            }
+        );
+        return { success: true, data: response.data.data };
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+            return { success: false, error: err.response.data.error };
+        }
+        return { success: false, error: { code: 'NETWORK_ERROR', message: 'Lỗi kết nối' } };
+    }
+}
+
+/**
+ * Choose payment method (Phase 4)
+ */
+export async function choosePaymentMethod(
+    bookingId: string,
+    paymentMethod: 'CASH' | 'TRANSFER',
+    token: string
+): Promise<{ success: true; data: { bookingId: string; status: string; paymentMethod: string; waitingConfirmSince: string } } | { success: false; error: { code: string; message: string } }> {
+    try {
+        const response = await axios.post<ApiResponse<{ bookingId: string; status: string; paymentMethod: string; waitingConfirmSince: string }>>(
+            `${API_BASE}/bookings/${bookingId}/choose-payment`,
+            { paymentMethod },
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            }
+        );
+        return { success: true, data: response.data.data };
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+            return { success: false, error: err.response.data.error };
+        }
+        return { success: false, error: { code: 'NETWORK_ERROR', message: 'Lỗi kết nối' } };
+    }
+}
+
+/**
+ * Declare transfer payment (Phase 4)
+ */
+export async function declareTransfer(
+    bookingId: string,
+    token: string
+): Promise<{ success: true; data: { bookingId: string; status: string } } | { success: false; error: { code: string; message: string } }> {
+    try {
+        const response = await axios.post<ApiResponse<{ bookingId: string; status: string }>>(
+            `${API_BASE}/bookings/${bookingId}/declare-transfer`,
+            {},
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            }
+        );
+        return { success: true, data: response.data.data };
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+            return { success: false, error: err.response.data.error };
+        }
+        return { success: false, error: { code: 'NETWORK_ERROR', message: 'Lỗi kết nối' } };
+    }
+}

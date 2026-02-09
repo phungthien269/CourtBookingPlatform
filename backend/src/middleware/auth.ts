@@ -38,3 +38,17 @@ export function authMiddleware(
         return res.status(401).json({ error: 'Invalid token' });
     }
 }
+
+/**
+ * Require MANAGER role middleware (Phase 5)
+ */
+export function requireManager(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+) {
+    if (req.userRole !== 'MANAGER') {
+        return res.status(403).json({ error: 'Manager role required' });
+    }
+    next();
+}

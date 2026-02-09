@@ -519,3 +519,304 @@ export async function getBookingById(bookingId: string, userId: string): Promise
     };
 }
 
+// ==================== PHASE 4: PAYMENT METHOD + MANAGER CONFIRMATION ====================
+
+interface PaymentMethodRequest {
+    bookingId: string;
+    userId: string;
+    paymentMethod: 'CASH' | 'TRANSFER';
+}
+
+interface PaymentMethodResult {
+    success: boolean;
+    data?: {
+        bookingId: string;
+        status: string;
+        paymentMethod: string;
+        waitingConfirmSince: string;
+    };
+    error?: {
+        code: string;
+        message: string;
+    };
+}
+
+/**
+ * Choose payment method and transition to WAITING_MANAGER_CONFIRM
+ * Phase 4: PENDING_PAYMENT -> WAITING_MANAGER_CONFIRM
+ */
+export async function choosePaymentMethod(request: PaymentMethodRequest): Promise<PaymentMethodResult> {
+    const { bookingId, userId, paymentMethod } = request;
+
+    const booking = await prisma.booking.findFirst({
+        where: {
+            id: bookingId,
+            userId, // Owner check
+        },
+        include: {
+            court: {
+                select: {
+                    id: true,
+                    venueId: true,
+                },
+            },
+        },
+    });
+
+    if (!booking) {
+        return {
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Không tìm thấy đơn đặt sân' },
+        };
+    }
+
+    if (booking.status !== 'PENDING_PAYMENT') {
+        return {
+            success: false,
+            error: { code: 'INVALID_STATUS', message: 'Đơn đặt sân không ở trạng thái chờ thanh toán' },
+        };
+    }
+
+    // Check if pending hold expired
+    if (booking.pendingExpiresAt && booking.pendingExpiresAt < new Date()) {
+        return {
+            success: false,
+            error: { code: 'EXPIRED', message: 'Đơn đặt sân đã hết hạn giữ chỗ' },
+        };
+    }
+
+    const now = new Date();
+    const updated = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+            paymentMethod: paymentMethod,
+            status: 'WAITING_MANAGER_CONFIRM',
+            waitingConfirmSince: now,
+            pendingExpiresAt: null, // No longer relevant
+        },
+    });
+
+    // Broadcast to manager
+    broadcast({
+        type: 'booking.waiting_manager_confirm',
+        payload: {
+            bookingId: updated.id,
+            courtId: booking.court.id,
+            venueId: booking.court.venueId,
+            date: booking.date.toISOString().split('T')[0],
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            paymentMethod: paymentMethod,
+        },
+    });
+
+    return {
+        success: true,
+        data: {
+            bookingId: updated.id,
+            status: updated.status,
+            paymentMethod: updated.paymentMethod || '',
+            waitingConfirmSince: now.toISOString(),
+        },
+    };
+}
+
+/**
+ * Declare transfer payment (user ticks "I have transferred")
+ * Phase 4: Sets paymentDeclaredAt, notifies manager
+ */
+export async function declareTransfer(bookingId: string, userId: string): Promise<PaymentMethodResult> {
+    const booking = await prisma.booking.findFirst({
+        where: {
+            id: bookingId,
+            userId, // Owner check
+        },
+        include: {
+            court: {
+                select: {
+                    venueId: true,
+                },
+            },
+        },
+    });
+
+    if (!booking) {
+        return {
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Không tìm thấy đơn đặt sân' },
+        };
+    }
+
+    if (booking.status !== 'WAITING_MANAGER_CONFIRM') {
+        return {
+            success: false,
+            error: { code: 'INVALID_STATUS', message: 'Đơn đặt sân không ở trạng thái chờ xác nhận' },
+        };
+    }
+
+    if (booking.paymentMethod !== 'TRANSFER') {
+        return {
+            success: false,
+            error: { code: 'INVALID_PAYMENT_METHOD', message: 'Phương thức thanh toán không phải chuyển khoản' },
+        };
+    }
+
+    const now = new Date();
+    const updated = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+            paymentDeclaredAt: now,
+        },
+    });
+
+    // Broadcast to manager
+    broadcast({
+        type: 'booking.transfer.declared',
+        payload: {
+            bookingId: updated.id,
+            venueId: booking.court.venueId,
+            paymentDeclaredAt: now.toISOString(),
+        },
+    });
+
+    return {
+        success: true,
+        data: {
+            bookingId: updated.id,
+            status: updated.status,
+            paymentMethod: updated.paymentMethod || '',
+            waitingConfirmSince: updated.waitingConfirmSince?.toISOString() || '',
+        },
+    };
+}
+
+// ==================== PHASE 4: EXTENDED BOOKING DETAIL ====================
+
+interface BookingDetailExtended {
+    bookingId: string;
+    status: string;
+    paymentMethod: string | null;
+    pendingExpiresAt: string | null;
+    waitingConfirmSince: string | null;
+    paymentDeclaredAt: string | null;
+    confirmedAt: string | null;
+    managerCancelReason: string | null;
+    date: string;
+    startTime: string;
+    endTime: string;
+    durationHours: number;
+    totalPrice: number;
+    court: { id: string; name: string; pricePerHour: number };
+    venue: {
+        id: string;
+        name: string;
+        address: string;
+        contactPhone: string | null; // Only if CONFIRMED
+        bankName: string | null;
+        bankAccountNumber: string | null;
+        bankAccountName: string | null;
+    };
+    user?: { id: string; name: string | null; email: string };
+}
+
+/**
+ * Get booking by ID with extended Phase 4 fields
+ * contactPhone is only returned when booking is CONFIRMED
+ * Accessible by: owner user, manager of venue, admin
+ */
+export async function getBookingByIdExtended(
+    bookingId: string,
+    requesterId: string,
+    requesterRole: string
+): Promise<BookingDetailExtended | null> {
+    const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+            court: {
+                select: {
+                    id: true,
+                    name: true,
+                    pricePerHour: true,
+                    venue: {
+                        select: {
+                            id: true,
+                            name: true,
+                            address: true,
+                            contactPhone: true,
+                            bankName: true,
+                            bankAccountNumber: true,
+                            bankAccountName: true,
+                            managerId: true,
+                        },
+                    },
+                },
+            },
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                },
+            },
+        },
+    });
+
+    if (!booking) return null;
+
+    // Access control
+    const isOwner = booking.userId === requesterId;
+    const isManager = requesterRole === 'MANAGER';
+    const isAdmin = requesterRole === 'ADMIN';
+
+    // Check manager ownership via venue
+    if (isManager && !isAdmin && !isOwner) {
+        const manager = await prisma.manager.findFirst({
+            where: { userId: requesterId },
+        });
+        if (!manager || booking.court.venue.managerId !== manager.id) {
+            return null; // Not authorized
+        }
+    }
+
+    if (!isOwner && !isManager && !isAdmin) {
+        return null; // Not authorized
+    }
+
+    // Privacy rule: contactPhone only when CONFIRMED and requester is owner/manager/admin
+    const showContactPhone = booking.status === 'CONFIRMED' && (isOwner || isManager || isAdmin);
+
+    return {
+        bookingId: booking.id,
+        status: booking.status,
+        paymentMethod: booking.paymentMethod,
+        pendingExpiresAt: booking.pendingExpiresAt?.toISOString() || null,
+        waitingConfirmSince: booking.waitingConfirmSince?.toISOString() || null,
+        paymentDeclaredAt: booking.paymentDeclaredAt?.toISOString() || null,
+        confirmedAt: booking.confirmedAt?.toISOString() || null,
+        managerCancelReason: booking.managerCancelReason,
+        date: booking.date.toISOString().split('T')[0],
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        durationHours: booking.durationHours,
+        totalPrice: booking.totalPrice,
+        court: {
+            id: booking.court.id,
+            name: booking.court.name,
+            pricePerHour: booking.court.pricePerHour,
+        },
+        venue: {
+            id: booking.court.venue.id,
+            name: booking.court.venue.name,
+            address: booking.court.venue.address,
+            contactPhone: showContactPhone ? booking.court.venue.contactPhone : null,
+            bankName: booking.court.venue.bankName,
+            bankAccountNumber: booking.court.venue.bankAccountNumber,
+            bankAccountName: booking.court.venue.bankAccountName,
+        },
+        user: isManager || isAdmin ? {
+            id: booking.user.id,
+            name: booking.user.name,
+            email: booking.user.email,
+        } : undefined,
+    };
+}
