@@ -36,6 +36,9 @@ import ManagerBookingsPage from './pages/manager/ManagerBookingsPage';
 import ManagerChatInbox from './pages/manager/ManagerChatInbox';
 import ManagerChatThread from './pages/manager/ManagerChatThread';
 
+// Phase 6: Notifications page
+import Notifications from './pages/Notifications';
+
 // Route guards
 function RequireAuth({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
@@ -152,6 +155,7 @@ export default function App() {
                     <Route path="/me/bookings" element={<MyBookings />} />
                     <Route path="/me/bookings/:id" element={<BookingDetail />} />
                     <Route path="/me/chat/:bookingId" element={<Chat />} />
+                    <Route path="/notifications" element={<Notifications />} />
                 </Route>
 
                 {/* Manager routes */}
@@ -172,6 +176,7 @@ export default function App() {
                     <Route path="/manager/subscription" element={<PlaceholderPage title="Gia hạn" />} />
                     <Route path="/manager/chat" element={<ManagerChatInbox />} />
                     <Route path="/manager/chat/:threadId" element={<ManagerChatThread />} />
+                    <Route path="/manager/notifications" element={<Notifications />} />
                 </Route>
 
                 {/* Admin routes */}

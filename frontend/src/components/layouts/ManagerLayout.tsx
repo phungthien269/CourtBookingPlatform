@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ConnectionStatus } from '../ConnectionStatus';
+import NotificationBell from '../NotificationBell';
 
 const sidebarItems = [
     { path: '/manager', label: 'Dashboard', icon: '📊' },
@@ -35,8 +36,8 @@ export function ManagerLayout() {
                             key={item.path}
                             to={item.path}
                             className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${location.pathname === item.path
-                                    ? 'bg-primary-light text-primary'
-                                    : 'text-gray-600 hover:bg-gray-100'
+                                ? 'bg-primary-light text-primary'
+                                : 'text-gray-600 hover:bg-gray-100'
                                 }`}
                         >
                             <span>{item.icon}</span>
@@ -52,10 +53,7 @@ export function ManagerLayout() {
                 <header className="h-16 bg-white border-b flex items-center justify-between px-6 sticky top-0 z-30">
                     <h1 className="font-heading font-semibold">Sân cầu lông Phú Nhuận</h1>
                     <div className="flex items-center gap-4">
-                        <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                            🔔
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
-                        </button>
+                        <NotificationBell />
                         <span className="text-sm text-gray-600">{user?.name || user?.email}</span>
                         <button
                             onClick={logout}

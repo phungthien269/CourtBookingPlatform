@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ConnectionStatus } from '../ConnectionStatus';
+import NotificationBell from '../NotificationBell';
 
 export function UserLayout() {
     const { user, logout } = useAuth();
@@ -32,8 +33,8 @@ export function UserLayout() {
                                     key={item.path}
                                     to={item.path}
                                     className={`text-sm font-medium ${location.pathname === item.path
-                                            ? 'text-primary'
-                                            : 'text-gray-600 hover:text-gray-900'
+                                        ? 'text-primary'
+                                        : 'text-gray-600 hover:text-gray-900'
                                         }`}
                                 >
                                     {item.label}
@@ -43,6 +44,7 @@ export function UserLayout() {
 
                         {/* User menu */}
                         <div className="flex items-center gap-4">
+                            <NotificationBell />
                             <span className="text-sm text-gray-600">{user?.name || user?.email}</span>
                             <button
                                 onClick={logout}
