@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getNotifications, getUnreadCount, markAsRead, NotificationItem } from '../api/notification';
 
 export default function NotificationBell() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const navigate = useNavigate();
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
@@ -104,8 +104,16 @@ export default function NotificationBell() {
 
         // Navigate based on type
         if (notification.bookingId) {
+            if (user?.role === 'MANAGER') {
+                navigate('/manager/bookings');
+                return;
+            }
+
             navigate(`/me/bookings/${notification.bookingId}`);
+            return;
         }
+
+        navigate(user?.role === 'MANAGER' ? '/manager/notifications' : '/notifications');
     };
 
     // Format relative time
@@ -145,7 +153,7 @@ export default function NotificationBell() {
                     <div className="p-3 border-b border-gray-100 flex items-center justify-between">
                         <span className="font-semibold text-gray-800">Thông báo</span>
                         <Link
-                            to="/notifications"
+                            to={user?.role === 'MANAGER' ? '/manager/notifications' : '/notifications'}
                             onClick={() => setIsOpen(false)}
                             className="text-sm text-primary hover:underline"
                         >

@@ -19,7 +19,6 @@ import { AdminDashboard } from './pages/admin/Dashboard';
 import { AdminManagers } from './pages/admin/Managers';
 import { AdminApprovals } from './pages/admin/Approvals';
 import { AdminAuditLogs } from './pages/admin/AuditLogs';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 
 // Phase 2: Booking pages
 import CourtLayoutPage from './pages/booking/CourtLayoutPage';
@@ -31,6 +30,10 @@ import PaymentPage from './pages/booking/PaymentPage';
 
 // Phase 4: Manager bookings page
 import ManagerBookingsPage from './pages/manager/ManagerBookingsPage';
+import ManagerCourtsPage from './pages/manager/ManagerCourtsPage';
+import ManagerSchedulePage from './pages/manager/ManagerSchedulePage';
+import ManagerAnalyticsPage from './pages/manager/ManagerAnalyticsPage';
+import ManagerSubscriptionPage from './pages/manager/ManagerSubscriptionPage';
 
 // Phase 5: Manager chat pages
 import ManagerChatInbox from './pages/manager/ManagerChatInbox';
@@ -170,10 +173,10 @@ export default function App() {
                 >
                     <Route path="/manager" element={<ManagerDashboard />} />
                     <Route path="/manager/bookings" element={<ManagerBookingsPage />} />
-                    <Route path="/manager/courts" element={<PlaceholderPage title="Quản lý sân" />} />
-                    <Route path="/manager/schedule" element={<PlaceholderPage title="Lịch hoạt động" />} />
-                    <Route path="/manager/analytics" element={<PlaceholderPage title="Thống kê" />} />
-                    <Route path="/manager/subscription" element={<PlaceholderPage title="Gia hạn" />} />
+                    <Route path="/manager/courts" element={<ManagerCourtsPage />} />
+                    <Route path="/manager/schedule" element={<ManagerSchedulePage />} />
+                    <Route path="/manager/analytics" element={<ManagerAnalyticsPage />} />
+                    <Route path="/manager/subscription" element={<ManagerSubscriptionPage />} />
                     <Route path="/manager/chat" element={<ManagerChatInbox />} />
                     <Route path="/manager/chat/:threadId" element={<ManagerChatThread />} />
                     <Route path="/manager/notifications" element={<Notifications />} />

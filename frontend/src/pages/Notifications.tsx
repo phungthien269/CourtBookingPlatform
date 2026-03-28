@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 type TabType = 'all' | 'unread';
 
 export default function Notifications() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const navigate = useNavigate();
     const [tab, setTab] = useState<TabType>('all');
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -83,6 +83,11 @@ export default function Notifications() {
     const handleNotificationClick = async (notification: NotificationItem) => {
         await handleMarkAsRead(notification);
         if (notification.bookingId) {
+            if (user?.role === 'MANAGER') {
+                navigate('/manager/bookings');
+                return;
+            }
+
             navigate(`/me/bookings/${notification.bookingId}`);
         }
     };

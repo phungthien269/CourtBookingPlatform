@@ -11,6 +11,7 @@ import managerRouter from './routes/manager.js';  // Phase 4
 import reviewRouter from './routes/review.js';    // Phase 5
 import chatRouter from './routes/chat.js';        // Phase 5
 import notificationRouter from './routes/notification.js';  // Phase 6
+import adminRouter from './routes/admin.js';
 import { initWebSocket } from './lib/websocket.js';
 import { startExpiryScheduler } from './scheduler/pendingExpiry.js';
 import { startManagerConfirmTimeoutScheduler } from './scheduler/managerConfirmTimeout.js';  // Phase 4
@@ -32,6 +33,7 @@ app.use('/api/venues', venueRouter);
 app.use('/api/courts', courtRouter);
 app.use('/api/bookings', bookingRouter);
 app.use('/api/manager', managerRouter);  // Phase 4
+app.use('/api/admin', adminRouter);
 app.use('/api', reviewRouter);           // Phase 5: /api/reviews, /api/venues/:id/reviews, /api/me/review-eligibility
 app.use('/api/chat', chatRouter);        // Phase 5: /api/chat/threads, /api/chat/manager/inbox
 app.use('/api/notifications', notificationRouter);  // Phase 6
