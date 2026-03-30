@@ -1,120 +1,120 @@
 # Kana Flow
 
-**Kana Flow** là một ứng dụng di động học tiếng Nhật (Hiragana và Katakana). Ứng dụng chú trọng vào việc gợi nhớ nhanh thông qua việc học flashcard, ôn luyện kiểm tra trí nhớ với hệ thống thẻ câu hỏi, khả năng đồng bộ dữ liệu đám mây (hoặc offline local) và giao diện song ngữ (Việt / Anh).
+**Kana Flow** is a mobile application for learning Japanese (Hiragana and Katakana). The application focuses on quick recall through flashcards, memory checking with a question card system, cloud (or local offline) data synchronization capabilities, and a bilingual interface (Vietnamese / English).
 
-## 🛠 Công nghệ sử dụng
+## 🛠 Technology Stack
 - **React 19 + Vite + TypeScript**
 - **React Router v7**
 - **Tailwind CSS v4**
-- **Zustand** (Quản lý State)
+- **Zustand** (State Management)
 - **TanStack Query**
-- **Framer Motion** (Tạo hiệu ứng lật thẻ mượt mà)
-- **react-i18next** (Hệ thống đa ngôn ngữ)
-- **Supabase** (Cơ sở dữ liệu lưu trữ đám mây & xác thực)
-- **vite-plugin-pwa** (Cài đặt ứng dụng như Progressive Web App, hỗ trợ lưu thiết bị iOS/Android)
-- **Agentation** (Công cụ hỗ trợ trực quan hóa UI khi phát triển)
+- **Framer Motion** (Smooth card flipping animations)
+- **react-i18next** (Multilingual system)
+- **Supabase** (Cloud database storage & authentication)
+- **vite-plugin-pwa** (Installs app as a Progressive Web App, supports saving on iOS/Android devices)
+- **Agentation** (Visual UI development tool)
 
-## 🌟 Chức năng nổi bật
+## 🌟 Key Features
 
-### 1. Học bảng chữ cái
-- **Hiragana**: 46 mẫu tự cơ bản, âm đục/âm bán đục (dakuten/handakuten), âm ghép (youon), âm ngắt (sokuon) và trường âm.
-- **Katakana**: Tương tự Hiragana, cộng thêm bảng âm ngoại lai (loanword/long vowel).
-- **Lựa chọn chữ linh hoạt**:
-  - Chọn từng chữ cái riêng lẻ.
-  - Chọn nhanh toàn bộ khu vực theo hàng ngang.
-  - Chọn theo từng danh mục lớn (chữ cơ bản, chữ âm đục, âm ghép...).
-  - Chọn tất cả chỉ bằng 1 nút nhấn.
-  - Live summary cho biết số lượng thẻ từ đang chọn.
+### 1. Alphabet Learning
+- **Hiragana**: 46 basic characters, dakuten/handakuten (voiced/half-voiced), youon (contracted sounds), sokuon (double consonants), and long vowels.
+- **Katakana**: Similar to Hiragana, plus extended katakana (loanwords/long vowels).
+- **Flexible Character Selection**:
+  - Select individual characters.
+  - Quick select an entire horizontal row.
+  - Select by broad categories (basic characters, voiced sounds, contracted sounds...).
+  - Select all with a single click.
+  - Live summary indicating the number of selected flashcards.
 
-### 2. Chế độ học tập (Study Mode)
-- Học tuần tự thông qua thẻ flashcard với các hiệu ứng lật (flip) hoạt ảnh bắt mắt.
-- Hỗ trợ cấu hình lại phím tắt (Keyboard shortcuts) cho màn hình Desktop thuận tiện lật và chuyển câu nhanh hơn.
+### 2. Study Mode
+- Learn sequentially through flashcards with eye-catching flip animations.
+- Supports customizable keyboard shortcuts for the Desktop layout, making flipping and skipping questions faster and more convenient.
 
-### 3. Chế độ ôn tập (Review Mode)
-- Cơ chế trắc nghiệm lựa chọn (4 đáp án) từ kho từ đang học.
-- Đảo thứ tự bảng ngẫu nhiên.
-- **Cơ chế nhắc nhở thông minh**: 
-  - Mặc định bộ câu hỏi cần trả lời đúng 5 lần (`remaining = 5`).
-  - Trả lời đúng (-1 lần còn lại), trả lời sai sẽ bị phạt điểm (+3 lần cộng thêm).
-  - Phiên ôn tập chỉ kết thúc khi toàn bộ các từ được chọn về ngưỡng trả lời đúng mục tiêu `0`.
-- Tùy chọn hiển thị ẩn/hiện và xem đáp án ngay lập tức nếu làm sai.
+### 3. Review Mode
+- Multiple-choice quizzing (4 options) from the current vocabulary pool.
+- Randomizes the board order.
+- **Smart Reminder Mechanism**: 
+  - By default, each question needs to be answered correctly 5 times (`remaining = 5`).
+  - Correct answer (-1 remaining), incorrect answer results in a penalty (+3 remaining added).
+  - The review session only ends when all selected words reach the target of `0` remaining correct answers.
+- Option to toggle visibility and view the correct answer immediately if answered incorrectly.
 
-### 4. Thống kê tiến độ (Progress)
-- Hiển thị cấp độ ghi nhớ thông qua bộ thống kê.
-- Phân tích và báo cáo những mặt chữ đang gặp khó khăn (weak items).
-- Tracking lịch sử các phiên học / phiên ôn tập và các lần attempt trả lời đúng/sai của bạn.
-- Hiển thị độ thành thạo phân rã theo nhóm (Hiragana/Katakana) hoặc các nhóm kí tự chi tiết.
+### 4. Progress Statistics
+- Displays memory level through a statistics dashboard.
+- Analyzes and reports on struggling characters (weak items).
+- Tracks the history of your study / review sessions and correct/incorrect attempt counts.
+- Displays proficiency breakdown by groups (Hiragana/Katakana) or detailed character categories.
 
-### 5. Cài đặt cá nhân hóa (Settings)
-- Thay đổi giao diện (Theme: Sáng / Tối / Tự động System).
-- Ngôn ngữ hiển thị (Mặc định: Tiếng Việt, hỗ trợ tiếng Anh).
-- Tùy chỉnh chi tiết bản đồ phím tắt bàn phím.
-- Theo dõi trạng thái đồng bộ cơ sở dữ liệu (Cloud Persistence <-> Local Fallback).
-- Cài đặt App (PWA Shortcut) lên màn hình điện thoại như ứng dụng Native.
+### 5. Personalization Settings
+- Theme adjustments (Light / Dark / System Auto).
+- Display language (Default: Vietnamese, supports English).
+- Detailed customization of keyboard shortcuts.
+- Monitors database synchronization status (Cloud Persistence <-> Local Fallback).
+- Install the App (PWA Shortcut) to your phone screen just like a Native app.
 
-## 🚀 Hướng dẫn cài đặt và chạy tại máy
+## 🚀 Installation & Local Development setup
 
-### Yêu cầu bản thân máy phát triển
+### Development Environment Requirements
 - Node.js.
-- Supabase account (nếu muốn thử tính năng lưu trữ cloud).
+- Supabase account (if you want to test cloud storage features).
 
-### Các bước cài đặt dự án
-1. **Cài đặt các gói phụ thuộc (Dependencies)**:
+### Project Setup Steps
+1. **Install Dependencies**:
    ```bash
    npm install
    ```
-2. **Thiết lập biến môi trường dự án**:
-   Sao chép tham chiếu `.env.example` thành `.env`:
+2. **Set up project environment variables**:
+   Copy the reference `.env.example` to `.env`:
    ```bash
    cp .env.example .env
    ```
-   *(Cho Windows PowerShell)*:
+   *(For Windows PowerShell)*:
    ```powershell
    Copy-Item .env.example .env
    ```
-3. **Khởi chạy Development Server**:
+3. **Start the Development Server**:
    ```bash
    npm run dev
    ```
-4. **Build source code cho Production**:
+4. **Build source code for Production**:
    ```bash
    npm run build
    ```
-5. **Chạy kịch bản Test hệ thống**:
+5. **Run the System Test script**:
    ```bash
    npm run test
    ```
 
-## ☁️ Cấu hình Supabase (Tùy chọn)
+## ☁️ Supabase Configuration (Optional)
 
-Nếu bạn muốn App hoạt động với chức năng Cloud Save (để đồng bộ tiến trình học giữa PC và điện thoại):
-1. Khởi tạo một dự án mới trên nền tảng Supabase.
-2. Bật chức năng Auth *Anonymous* (Đăng nhập tự động không cần danh tính).
-3. Thêm URL Web của bạn vào mục "Auth redirect URLs" để sau này có thể nâng cấp liên kết Identity.
-4. Đọc/chạy file SQL cấu trúc bảng tại `supabase/migrations/001_initial.sql`.
-5. Sinh tệp dữ liệu Seed Database Kana bằng câu lệnh tích hợp trên máy:
+If you want the App to function with Cloud Save (to sync learning progress between PC and phone):
+1. Initialize a new project on the Supabase platform.
+2. Enable *Anonymous* Auth (Automatic login without identity).
+3. Add your Web URL to the "Auth redirect URLs" to later upgrade Identity linking.
+4. Read/run the table structure SQL file at `supabase/migrations/001_initial.sql`.
+5. Generate the Kana Seed Database data file using the integrated local command:
    ```bash
    npm run seed:generate
    ```
-6. Paste đoạn query sinh ra trong file `supabase/seed.sql` chạy thẳng vào SQL Editor của Supabase.
-7. Cập nhật và lưu lại file `.env` với các nội dung API:
+6. Paste the generated query inside `supabase/seed.sql` directly into Supabase's SQL Editor and run it.
+7. Update and save the `.env` file with API contents:
    - `VITE_SUPABASE_URL=...`
    - `VITE_SUPABASE_ANON_KEY=...`
    - `VITE_APP_URL=http://localhost:5173`
-   - `VITE_AGENTATION_ENDPOINT=` (Chỉ dùng riêng cho Tool UI nội bộ máy ảo)
+   - `VITE_AGENTATION_ENDPOINT=` (Used exclusively for internal VM UI Tools)
 
-*🚨 Lưu ý hệ thống: Tệp `supabase/seed.sql` là kết quả render được tự động hóa trích dẫn từ file code Data Master `src/lib/kana-data.ts`. Bất kỳ thay đổi, hiệu chỉnh nào đối với cấu trúc Romaji/Chữ tiếng Nhật trong đó cũng phải đi cùng với bước lệnh chạy lại `npm run seed:generate`.*
+*🚨 System note: The `supabase/seed.sql` file is an automated render extracted from the Data Master code file `src/lib/kana-data.ts`. Any changes or modifications to the Romaji/Japanese character structure within it must be accompanied by re-running the `npm run seed:generate` command.*
 
-Trường hợp **không sử dụng cấu hình CSDL Supabase**, ứng dụng mặc định sẽ hoạt động ở **Offline Persistence Mode** thông qua bộ nhớ Local Storage thiết bị.
+If **not using the Supabase DB configuration**, the app will default to operating in **Offline Persistence Mode** via the device's Local Storage memory.
 
-## 🧬 Cấu trúc thư mục lõi
-- `src/components`: Component tái sử dụng/UI Layout chung (`layout.tsx`, `ui.tsx`).
-- `src/pages`: Toàn bộ các trang Routing chức năng (Màn hình chính, màn hình bảng chữ, ôn tập, tiến độ, cài đặt,...).
-- `src/lib`: Bộ logic xử lý nghiệp vụ của ứng dụng:
-  - `kana-data.ts`: Master Data toàn vẹn Romaji, Nghĩa Vi-En, thông tin ký tự.
-  - `review-engine.ts`: Chứa thuật toán tạo test 4 đáp án và sắp xếp lựa chọn vòng Review học.
-  - `progress.ts`: Cập nhật logic tăng Streak nhớ ký tự, điều hướng lưu Status item...
-  - `storage.ts`: Trạm Data Access Layer kiểm soát toàn quyền trạng thái sync với Supabase / Offline Local Web Storage.
-  - `i18n.ts`: Bộ logic setup chuyển ngữ app.
-- `src/store`: Hệ thống chia sẻ Global App State điều khiển lưu lượng người dùng, cache trạng thái thiết lập qua thư viện Zustand (`use-app-store.ts`).
-- `supabase/`: Lưu định nghĩa Model DB và các đoạn query liên quan đến Cloud Backend.
+## 🧬 Core Directory Structure
+- `src/components`: Reusable components/General UI Layouts (`layout.tsx`, `ui.tsx`).
+- `src/pages`: All functional Routing pages (Main screen, alphabet board, review, progress, settings,...).
+- `src/lib`: The application's business logic suite:
+  - `kana-data.ts`: Comprehensive Master Data for Romaji, Vi-En definitions, character info.
+  - `review-engine.ts`: Contains the algorithm for generating 4-option tests and sorting study Review loops.
+  - `progress.ts`: Updates logic to increase character memory streaks, navigate saving status items...
+  - `storage.ts`: Data Access Layer station with full control over sync states with Supabase / Offline Local Web Storage.
+  - `i18n.ts`: App localization setup logic.
+- `src/store`: Global App State sharing system via Zustand library to manage user flow and cache configuration states (`use-app-store.ts`).
+- `supabase/`: Stores DB Model definitions and queries related to the Cloud Backend.
