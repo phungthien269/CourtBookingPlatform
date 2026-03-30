@@ -1,7 +1,7 @@
-# CourtBooking Platform (Pickleball & Badminton)
+# CourtBooking Platform
 
 ## Project Overview
-CourtBooking is a comprehensive marketplace web application designed for booking sports courts (specifically Badminton and Pickleball). The platform connects sports players ("Users") with court owners ("Managers") through a centralized system.
+CourtBooking is a comprehensive marketplace web application designed for booking sports courts (specifically Badminton and Pickleball, Tennis). The platform connects sports players ("Users") with court owners ("Managers") through a centralized system.
 
 ## Key Features
 
