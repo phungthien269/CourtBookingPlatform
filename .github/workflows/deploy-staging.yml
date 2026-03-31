@@ -1,0 +1,11 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Configure Vercel/Railway staging deployment in repository secrets before enabling this workflow."
+
