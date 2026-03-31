@@ -1,6 +1,7 @@
-# CourtBooking Platform (Pickleball & Badminton)
+# CourtBooking Platform
 
-CourtBooking là nền tảng **marketplace đặt sân thể thao theo giờ** (MVP: **Badminton** + **Pickleball**) với 3 portal: **User**, **Manager**, **Admin**.
+## Project Overview
+CourtBooking is a comprehensive marketplace web application designed for booking sports courts (specifically Badminton and Pickleball, Tennis). The platform connects sports players ("Users") with court owners ("Managers") through a centralized system.
 
 Production cut hướng tới **Public Beta (web-only)**:
 
