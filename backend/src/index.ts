@@ -15,6 +15,7 @@ import adminRouter from './routes/admin.js';
 import { initWebSocket } from './lib/websocket.js';
 import { startExpiryScheduler } from './scheduler/pendingExpiry.js';
 import { startManagerConfirmTimeoutScheduler } from './scheduler/managerConfirmTimeout.js';  // Phase 4
+import { startUnverifiedUserCleanupScheduler } from './scheduler/unverifiedUserCleanup.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,6 +48,7 @@ initWebSocket(server);
 // Start schedulers
 startExpiryScheduler();                  // Phase 3: pending hold expiry
 startManagerConfirmTimeoutScheduler();   // Phase 4: 1h manager timeout
+startUnverifiedUserCleanupScheduler();
 
 // Start server
 server.listen(PORT, () => {

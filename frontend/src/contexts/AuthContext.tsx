@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             try {
                 const response = await authApi.getMe();
-                setUser(response.data.user);
+                setUser(response.data.data.user);
             } catch {
                 // Invalid token, clear it
                 localStorage.removeItem('token');

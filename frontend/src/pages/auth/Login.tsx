@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { authApi } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -11,6 +12,20 @@ export function Login() {
     const [loading, setLoading] = useState(false);
     const { login, user } = useAuth();
     const navigate = useNavigate();
+
+    const persistOtpSession = (pendingEmail: string, otpHint?: string, resendCooldownSeconds?: number) => {
+        sessionStorage.setItem('pendingEmail', pendingEmail);
+
+        if (typeof resendCooldownSeconds === 'number') {
+            sessionStorage.setItem('resendCooldownSeconds', String(resendCooldownSeconds));
+        }
+
+        if (otpHint) {
+            sessionStorage.setItem('otpHint', otpHint);
+        } else {
+            sessionStorage.removeItem('otpHint');
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,9 +44,32 @@ export function Login() {
                 navigate('/me/bookings');
             }
         } catch (err: any) {
-            const errorCode = err.response?.data?.error;
+            const errorCode = err.response?.data?.error?.code || err.response?.data?.error;
             if (errorCode === 'EMAIL_NOT_VERIFIED') {
-                setError('Email chưa được xác thực. Vui lòng kiểm tra email.');
+                sessionStorage.setItem('pendingEmail', email);
+
+                try {
+                    const resendResponse = await authApi.resendOtp({ email });
+                    persistOtpSession(
+                        resendResponse.data.email,
+                        resendResponse.data.otpHint,
+                        resendResponse.data.resendCooldownSeconds
+                    );
+                    navigate('/auth/verify-otp');
+                    return;
+                } catch (resendError: any) {
+                    const resendCode = resendError.response?.data?.error?.code || resendError.response?.data?.error;
+                    const remainingSeconds = resendError.response?.data?.error?.details?.remainingSeconds;
+
+                    if (resendCode === 'OTP_RESEND_COOLDOWN' && typeof remainingSeconds === 'number') {
+                        sessionStorage.setItem('resendCooldownSeconds', String(remainingSeconds));
+                        sessionStorage.removeItem('otpHint');
+                        navigate('/auth/verify-otp');
+                        return;
+                    }
+
+                    setError('Email chưa được xác thực và chưa thể gửi lại OTP lúc này.');
+                }
             } else if (errorCode === 'ACCOUNT_LOCKED') {
                 setError('Tài khoản đã bị khóa.');
             } else {

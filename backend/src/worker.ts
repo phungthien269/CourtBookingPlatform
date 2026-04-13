@@ -4,6 +4,7 @@ import { logger } from './lib/logger.js';
 import { updateWorkerHeartbeat } from './lib/worker.js';
 import { startExpiryScheduler } from './scheduler/pendingExpiry.js';
 import { startManagerConfirmTimeoutScheduler } from './scheduler/managerConfirmTimeout.js';
+import { startUnverifiedUserCleanupScheduler } from './scheduler/unverifiedUserCleanup.js';
 
 async function main() {
     logger.info({
@@ -14,6 +15,7 @@ async function main() {
     await updateWorkerHeartbeat({ bootedAt: new Date().toISOString() });
     startExpiryScheduler();
     startManagerConfirmTimeoutScheduler();
+    startUnverifiedUserCleanupScheduler();
 
     setInterval(() => {
         void updateWorkerHeartbeat({ source: 'worker', updatedAt: new Date().toISOString() });

@@ -14,6 +14,20 @@ export function Register() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    const persistOtpSession = (pendingEmail: string, otpHint?: string, resendCooldownSeconds?: number) => {
+        sessionStorage.setItem('pendingEmail', pendingEmail);
+
+        if (typeof resendCooldownSeconds === 'number') {
+            sessionStorage.setItem('resendCooldownSeconds', String(resendCooldownSeconds));
+        }
+
+        if (otpHint) {
+            sessionStorage.setItem('otpHint', otpHint);
+        } else {
+            sessionStorage.removeItem('otpHint');
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -32,14 +46,18 @@ export function Register() {
 
         try {
             const response = await authApi.register({ email, password, name });
-            // Store email for OTP page
-            sessionStorage.setItem('pendingEmail', email);
-            sessionStorage.setItem('otpHint', response.data.otpHint);
+            persistOtpSession(
+                response.data.email,
+                response.data.otpHint,
+                response.data.resendCooldownSeconds
+            );
             navigate('/auth/verify-otp');
         } catch (err: any) {
-            const errorCode = err.response?.data?.error;
+            const errorCode = err.response?.data?.error?.code || err.response?.data?.error;
             if (errorCode === 'EMAIL_ALREADY_EXISTS') {
                 setError('Email này đã được đăng ký.');
+            } else if (errorCode === 'EMAIL_SEND_FAILED') {
+                setError('Đăng ký thành công nhưng chưa thể gửi OTP. Vui lòng thử lại sau ít phút.');
             } else {
                 setError('Đã có lỗi xảy ra. Vui lòng thử lại.');
             }

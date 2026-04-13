@@ -11,6 +11,10 @@ async function sendEmail(params: {
     text: string;
 }) {
     if (!resend) {
+        if (appConfig.isProduction) {
+            throw new Error('RESEND_API_KEY_MISSING');
+        }
+
         logger.warn({
             event: 'email.skipped',
             to: params.to,
@@ -20,13 +24,23 @@ async function sendEmail(params: {
         return;
     }
 
-    await resend.emails.send({
-        from: appConfig.emailFrom,
-        to: params.to,
-        subject: params.subject,
-        html: params.html,
-        text: params.text,
-    });
+    try {
+        await resend.emails.send({
+            from: appConfig.emailFrom,
+            to: params.to,
+            subject: params.subject,
+            html: params.html,
+            text: params.text,
+        });
+    } catch (error) {
+        logger.error({
+            event: 'email.send_failed',
+            to: params.to,
+            subject: params.subject,
+            error,
+        });
+        throw error;
+    }
 }
 
 export async function sendOtpEmail(params: {
@@ -58,4 +72,3 @@ export async function sendPasswordResetEmail(params: {
         html: `<p>${greeting}</p><p>Bạn vừa yêu cầu đặt lại mật khẩu.</p><p><a href="${params.resetUrl}">Đặt lại mật khẩu</a></p><p>Liên kết có hiệu lực trong ${params.expiresInMinutes} phút.</p>`,
     });
 }
-

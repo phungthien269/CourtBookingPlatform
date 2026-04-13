@@ -6,17 +6,46 @@ import { Button } from '../../components/ui/Button';
 export function VerifyOtp() {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [error, setError] = useState('');
+    const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
-    const [countdown, setCountdown] = useState(60);
+    const [resending, setResending] = useState(false);
+    const [countdown, setCountdown] = useState(() => {
+        const storedCountdown = Number(sessionStorage.getItem('resendCooldownSeconds'));
+        return Number.isFinite(storedCountdown) && storedCountdown > 0 ? storedCountdown : 0;
+    });
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const navigate = useNavigate();
 
     const email = sessionStorage.getItem('pendingEmail');
     const otpHint = sessionStorage.getItem('otpHint');
 
+    const persistOtpSession = (pendingEmail: string, otpHintValue?: string, resendCooldownSeconds?: number) => {
+        sessionStorage.setItem('pendingEmail', pendingEmail);
+
+        if (typeof resendCooldownSeconds === 'number') {
+            sessionStorage.setItem('resendCooldownSeconds', String(resendCooldownSeconds));
+            setCountdown(resendCooldownSeconds);
+        }
+
+        if (otpHintValue) {
+            sessionStorage.setItem('otpHint', otpHintValue);
+        } else {
+            sessionStorage.removeItem('otpHint');
+        }
+    };
+
+    const clearOtpSession = () => {
+        sessionStorage.removeItem('pendingEmail');
+        sessionStorage.removeItem('otpHint');
+        sessionStorage.removeItem('resendCooldownSeconds');
+    };
+
+    const getErrorCode = (err: any) => err?.response?.data?.error?.code || err?.response?.data?.error;
+    const getErrorDetails = (err: any) => err?.response?.data?.error?.details;
+
     useEffect(() => {
         if (!email) {
-            navigate('/auth/register');
+            navigate('/auth/login');
         }
     }, [email, navigate]);
 
@@ -49,6 +78,7 @@ export function VerifyOtp() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setMessage('');
 
         const otpCode = otp.join('');
         if (otpCode.length !== 6) {
@@ -60,13 +90,68 @@ export function VerifyOtp() {
 
         try {
             await authApi.verifyOtp({ email: email!, otp: otpCode });
-            sessionStorage.removeItem('pendingEmail');
-            sessionStorage.removeItem('otpHint');
+            clearOtpSession();
             navigate('/auth/login');
         } catch (err: any) {
-            setError('Mã OTP không đúng hoặc đã hết hạn.');
+            const errorCode = getErrorCode(err);
+
+            if (errorCode === 'OTP_INVALID') {
+                setError('Mã OTP không đúng.');
+            } else if (errorCode === 'OTP_EXPIRED') {
+                setError('Mã OTP đã hết hạn. Vui lòng gửi lại mã mới.');
+            } else if (errorCode === 'OTP_ATTEMPTS_EXCEEDED') {
+                setError('Bạn đã nhập sai quá nhiều lần. Mã hiện tại đã bị vô hiệu hóa, vui lòng gửi lại OTP.');
+                setOtp(['', '', '', '', '', '']);
+                sessionStorage.removeItem('otpHint');
+                sessionStorage.setItem('resendCooldownSeconds', '0');
+                setCountdown(0);
+            } else if (errorCode === 'EMAIL_ALREADY_VERIFIED') {
+                clearOtpSession();
+                setMessage('Email đã được xác thực trước đó. Bạn có thể đăng nhập.');
+            } else {
+                setError('Không thể xác thực OTP lúc này.');
+            }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResendOtp = async () => {
+        if (!email || countdown > 0) {
+            return;
+        }
+
+        setResending(true);
+        setError('');
+        setMessage('');
+
+        try {
+            const response = await authApi.resendOtp({ email });
+            persistOtpSession(response.data.email, response.data.otpHint, response.data.resendCooldownSeconds);
+            setOtp(['', '', '', '', '', '']);
+            inputRefs.current[0]?.focus();
+            setMessage('Đã gửi lại OTP tới email của bạn.');
+        } catch (err: any) {
+            const errorCode = getErrorCode(err);
+            const errorDetails = getErrorDetails(err);
+
+            if (errorCode === 'OTP_RESEND_COOLDOWN') {
+                const remainingSeconds = Number(errorDetails?.remainingSeconds);
+                if (Number.isFinite(remainingSeconds) && remainingSeconds > 0) {
+                    sessionStorage.setItem('resendCooldownSeconds', String(remainingSeconds));
+                    setCountdown(remainingSeconds);
+                }
+                setError('Bạn vừa yêu cầu OTP gần đây. Vui lòng chờ thêm để gửi lại.');
+            } else if (errorCode === 'EMAIL_ALREADY_VERIFIED') {
+                clearOtpSession();
+                setMessage('Email đã được xác thực trước đó. Bạn có thể đăng nhập.');
+            } else if (errorCode === 'RESEND_OTP_RATE_LIMITED') {
+                setError('Bạn đã gửi lại OTP quá nhiều lần từ địa chỉ IP này. Vui lòng thử lại sau.');
+            } else {
+                setError('Không thể gửi lại OTP lúc này.');
+            }
+        } finally {
+            setResending(false);
         }
     };
 
@@ -92,6 +177,11 @@ export function VerifyOtp() {
             )}
 
             <form onSubmit={handleSubmit}>
+                {message && (
+                    <div className="bg-green-50 text-green-700 px-4 py-2 rounded text-sm mb-4">
+                        {message}
+                    </div>
+                )}
                 {error && (
                     <div className="bg-red-50 text-red-600 px-4 py-2 rounded text-sm mb-4">
                         {error}
@@ -123,7 +213,12 @@ export function VerifyOtp() {
                 {countdown > 0 ? (
                     <>Gửi lại mã sau {countdown}s</>
                 ) : (
-                    <button className="text-primary hover:underline">
+                    <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={resending}
+                        className="text-primary hover:underline disabled:opacity-50"
+                    >
                         Gửi lại mã
                     </button>
                 )}

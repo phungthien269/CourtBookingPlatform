@@ -35,6 +35,9 @@ export const authApi = {
     register: (data: { email: string; password: string; name?: string }) =>
         api.post('/api/auth/register', data),
 
+    resendOtp: (data: { email: string }) =>
+        api.post('/api/auth/resend-otp', data),
+
     verifyOtp: (data: { email: string; otp: string }) =>
         api.post('/api/auth/verify-otp', data),
 
@@ -42,6 +45,12 @@ export const authApi = {
         api.post('/api/auth/login', data),
 
     getMe: () => api.get('/api/auth/me'),
+
+    forgotPassword: (data: { email: string }) =>
+        api.post('/api/auth/forgot-password', data),
+
+    resetPassword: (data: { token: string; password: string }) =>
+        api.post('/api/auth/reset-password', data),
 };
 
 export default api;

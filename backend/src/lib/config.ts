@@ -10,8 +10,11 @@ const envSchema = z.object({
     JWT_EXPIRES_IN: z.string().default('7d'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
     REQUEST_SIZE_LIMIT: z.string().default('1mb'),
-    OTP_TTL_MINUTES: z.coerce.number().int().min(5).max(30).default(10),
+    OTP_TTL_MINUTES: z.coerce.number().int().min(5).max(30).default(5),
     OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(30).max(300).default(60),
+    OTP_VERIFY_ATTEMPT_WINDOW_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
+    OTP_VERIFY_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
+    UNVERIFIED_USER_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(5),
     PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(10).max(120).default(30),
     RESEND_API_KEY: z.string().optional().or(z.literal('')),
     EMAIL_FROM: z.string().default('CourtBooking <no-reply@example.com>'),
@@ -44,6 +47,9 @@ export const appConfig = {
     requestSizeLimit: parsedEnv.REQUEST_SIZE_LIMIT,
     otpTtlMinutes: parsedEnv.OTP_TTL_MINUTES,
     otpResendCooldownSeconds: parsedEnv.OTP_RESEND_COOLDOWN_SECONDS,
+    otpVerifyAttemptWindowMinutes: parsedEnv.OTP_VERIFY_ATTEMPT_WINDOW_MINUTES,
+    otpVerifyMaxAttempts: parsedEnv.OTP_VERIFY_MAX_ATTEMPTS,
+    unverifiedUserTtlMinutes: parsedEnv.UNVERIFIED_USER_TTL_MINUTES,
     passwordResetTtlMinutes: parsedEnv.PASSWORD_RESET_TTL_MINUTES,
     resendApiKey: parsedEnv.RESEND_API_KEY || null,
     emailFrom: parsedEnv.EMAIL_FROM,
@@ -65,4 +71,3 @@ export const appConfig = {
 };
 
 export type AppConfig = typeof appConfig;
-
