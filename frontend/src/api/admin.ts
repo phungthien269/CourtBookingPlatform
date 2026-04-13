@@ -88,6 +88,27 @@ export interface AdminAuditLog {
     details: Record<string, unknown> | null;
 }
 
+export interface AdminPaymentReconciliationItem {
+    id: string;
+    processingStatus: string;
+    receivedAt: string;
+    referenceCode: string | null;
+    providerEventId: string;
+    providerTxnId: string | null;
+    amount: number | null;
+    booking: {
+        id: string;
+        status: string;
+        date: string;
+        startTime: string;
+        endTime: string;
+        totalPrice: number;
+        venueName: string;
+        courtName: string;
+        userEmail: string;
+    } | null;
+}
+
 function getAuthConfig(token: string) {
     return {
         headers: { Authorization: `Bearer ${token}` },
@@ -193,4 +214,8 @@ export async function rejectAdminRenewalRequest(
     reviewNote: string
 ): Promise<ApiResult<AdminRenewalRequest>> {
     return postWithToken(`${API_BASE}/admin/renewal-requests/${requestId}/reject`, { reviewNote }, token);
+}
+
+export async function getAdminPaymentReconciliation(token: string): Promise<ApiResult<AdminPaymentReconciliationItem[]>> {
+    return getWithToken(`${API_BASE}/admin/payment-reconciliation`, token);
 }

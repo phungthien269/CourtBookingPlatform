@@ -1,55 +1,26 @@
-/**
- * PaymentPage - Phase 3 + Phase 4
- * Route: /payment/:bookingId
- * Phase 3: Shows booking summary with persistent countdown timer
- * Phase 4: Payment method selection, VietQR display, transfer declaration
- */
-
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { formatPrice, getBookingExtended, BookingDetailExtended, choosePaymentMethod, declareTransfer } from '../../api/booking';
+import {
+    formatPrice,
+    getBookingExtended,
+    BookingDetailExtended,
+    choosePaymentMethod,
+    createTransferSession,
+    TransferSessionResult,
+} from '../../api/booking';
 import { VenueDetail } from '../../api/venue';
 import { CourtDTO } from '../../api/booking';
 import { useAuth } from '../../contexts/AuthContext';
 import { ArrowLeft, Clock, MapPin, CreditCard, AlertCircle, Loader2, Banknote, QrCode, Check, CheckCircle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { toast } from '../../components/ui/Toast';
 
 interface LocationState {
     venue?: VenueDetail;
     court?: CourtDTO;
 }
 
-/**
- * Build VietQR URL
- * Spec: https://vietqr.io/danh-sach-api/link-tao-ma-vietqr
- */
-function buildVietQRUrl(
-    bankName: string,
-    accountNumber: string,
-    accountName: string,
-    amount: number,
-    description: string
-): string {
-    // Map common bank names to VietQR BIN codes
-    const bankBins: Record<string, string> = {
-        'Vietcombank': '970436',
-        'Techcombank': '970407',
-        'MBBank': '970422',
-        'VPBank': '970432',
-        'ACB': '970416',
-        'Sacombank': '970403',
-        'BIDV': '970418',
-        'VietinBank': '970415',
-        'TPBank': '970423',
-        'Agribank': '970405',
-    };
-
-    const bin = bankBins[bankName] || '970436'; // Default to Vietcombank
-    const template = 'compact2'; // Or 'qr_only', 'compact', 'print'
-
-    const url = `https://img.vietqr.io/image/${bin}-${accountNumber}-${template}.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(accountName)}`;
-    return url;
-}
+type PaymentStep = 'pending' | 'transfer_pending' | 'waiting_confirm' | 'confirmed' | 'cancelled';
 
 export default function PaymentPage() {
     const { bookingId } = useParams<{ bookingId: string }>();
@@ -59,33 +30,28 @@ export default function PaymentPage() {
     const state = location.state as LocationState | null;
 
     const [booking, setBooking] = useState<BookingDetailExtended | null>(null);
+    const [transferSession, setTransferSession] = useState<TransferSessionResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
     const [isExpired, setIsExpired] = useState(false);
-
-    // Phase 4 state
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'TRANSFER' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [transferDeclared, setTransferDeclared] = useState(false);
-    const [step, setStep] = useState<'pending' | 'choosing' | 'waiting_confirm' | 'confirmed' | 'cancelled'>('pending');
+    const [step, setStep] = useState<PaymentStep>('pending');
 
-    // Fetch booking details
     const fetchBooking = useCallback(async () => {
         if (!bookingId || !token) return;
 
         const result = await getBookingExtended(bookingId, token);
-
         if (!result.success) {
             setError(result.error?.message || 'Không thể tải thông tin booking');
             setLoading(false);
             return;
         }
 
-        const data = result.data!;
+        const data = result.data;
         setBooking(data);
 
-        // Determine step based on status
         if (data.status === 'CONFIRMED') {
             setStep('confirmed');
         } else if (data.status === 'CANCELLED_BY_MANAGER' || data.status === 'CANCELLED_BY_USER' || data.status === 'EXPIRED') {
@@ -94,10 +60,15 @@ export default function PaymentPage() {
         } else if (data.status === 'WAITING_MANAGER_CONFIRM') {
             setStep('waiting_confirm');
             setSelectedPaymentMethod(data.paymentMethod as 'CASH' | 'TRANSFER' | null);
-            setTransferDeclared(!!data.paymentDeclaredAt);
         } else if (data.status === 'PENDING_PAYMENT') {
-            setStep('pending');
-            // Check if already expired
+            const transferActive =
+                data.paymentMethod === 'TRANSFER' &&
+                transferSession?.expiresAt &&
+                new Date(transferSession.expiresAt).getTime() > Date.now();
+
+            setStep(transferActive ? 'transfer_pending' : 'pending');
+            setSelectedPaymentMethod(data.paymentMethod as 'CASH' | 'TRANSFER' | null);
+
             if (data.pendingExpiresAt) {
                 const expiresAt = new Date(data.pendingExpiresAt).getTime();
                 const now = Date.now();
@@ -108,21 +79,22 @@ export default function PaymentPage() {
         }
 
         setLoading(false);
-    }, [bookingId, token]);
+    }, [bookingId, token, transferSession?.expiresAt]);
 
     useEffect(() => {
-        fetchBooking();
+        void fetchBooking();
     }, [fetchBooking]);
 
-    // Countdown timer (only for PENDING_PAYMENT)
     useEffect(() => {
-        if (step !== 'pending' || remainingSeconds === null || remainingSeconds <= 0) return;
+        if ((step !== 'pending' && step !== 'transfer_pending') || remainingSeconds === null || remainingSeconds <= 0) return;
 
         const interval = setInterval(() => {
             setRemainingSeconds((prev) => {
                 if (prev === null || prev <= 1) {
                     clearInterval(interval);
                     setIsExpired(true);
+                    setTransferSession(null);
+                    setStep('cancelled');
                     return 0;
                 }
                 return prev - 1;
@@ -132,51 +104,78 @@ export default function PaymentPage() {
         return () => clearInterval(interval);
     }, [remainingSeconds, step]);
 
-    // Handle payment method selection and submission
-    const handleChoosePaymentMethod = async () => {
-        if (!selectedPaymentMethod || !bookingId || !token) return;
+    useEffect(() => {
+        if (!bookingId || !token) return;
 
-        setIsSubmitting(true);
-        const result = await choosePaymentMethod(bookingId, selectedPaymentMethod, token);
-        setIsSubmitting(false);
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+        const ws = new WebSocket(wsUrl);
 
-        if (!result.success) {
-            alert(result.error?.message || 'Có lỗi xảy ra');
-            return;
-        }
+        ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data) as { type?: string; payload?: { bookingId?: string; status?: string } };
+                if (message.type === 'booking:updated' && message.payload?.bookingId === bookingId) {
+                    if (message.payload.status === 'CONFIRMED') {
+                        setStep('confirmed');
+                        toast('Thanh toán đã được xác nhận tự động', 'success');
+                    }
+                    void fetchBooking();
+                }
+            } catch {
+                // ignore malformed ws payloads
+            }
+        };
 
-        setStep('waiting_confirm');
-        // Refresh booking data
-        fetchBooking();
-    };
+        return () => {
+            ws.close();
+        };
+    }, [bookingId, token, fetchBooking]);
 
-    // Handle transfer declaration
-    const handleDeclareTransfer = async () => {
+    const handleChooseCash = async () => {
         if (!bookingId || !token) return;
 
         setIsSubmitting(true);
-        const result = await declareTransfer(bookingId, token);
+        const result = await choosePaymentMethod(bookingId, 'CASH', token);
         setIsSubmitting(false);
 
         if (!result.success) {
-            alert(result.error?.message || 'Có lỗi xảy ra');
+            toast(result.error?.message || 'Có lỗi xảy ra', 'error');
             return;
         }
 
-        setTransferDeclared(true);
+        setSelectedPaymentMethod('CASH');
+        setTransferSession(null);
+        setStep('waiting_confirm');
+        await fetchBooking();
     };
 
-    // Format countdown
+    const handleCreateTransferSession = async () => {
+        if (!bookingId || !token) return;
+
+        setIsSubmitting(true);
+        const result = await createTransferSession(bookingId, token);
+        setIsSubmitting(false);
+
+        if (!result.success) {
+            toast(result.error?.message || 'Không thể tạo phiên chuyển khoản', 'error');
+            return;
+        }
+
+        setSelectedPaymentMethod('TRANSFER');
+        setTransferSession(result.data);
+        setStep('transfer_pending');
+        toast('Đã tạo QR thanh toán, chờ SePay xác nhận giao dịch', 'info');
+        await fetchBooking();
+    };
+
     const formatCountdown = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Format date for display
     const formatDate = (dateStr: string) => {
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('vi-VN', {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('vi-VN', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -204,62 +203,45 @@ export default function PaymentPage() {
         );
     }
 
-    const showQRCode = step === 'waiting_confirm' &&
-        selectedPaymentMethod === 'TRANSFER' &&
-        booking.venue.bankName &&
-        booking.venue.bankAccountNumber;
-
-    const qrUrl = showQRCode
-        ? buildVietQRUrl(
-            booking.venue.bankName!,
-            booking.venue.bankAccountNumber!,
-            booking.venue.bankAccountName || '',
-            booking.totalPrice,
-            `Dat san ${booking.court.name} ${booking.date}`
-        )
-        : null;
+    const showTransferCard = step === 'transfer_pending' && transferSession;
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
-            {/* Header */}
             <header className="bg-white border-b sticky top-0 z-10">
                 <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition"
-                    >
+                    <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div className="flex-1">
                         <h1 className="font-bold text-lg">
-                            {step === 'confirmed' ? 'Đặt sân thành công' :
-                                step === 'waiting_confirm' ? 'Chờ xác nhận' :
-                                    step === 'cancelled' ? 'Đã hủy' :
-                                        'Thanh toán'}
+                            {step === 'confirmed'
+                                ? 'Thanh toán thành công'
+                                : step === 'waiting_confirm'
+                                  ? 'Chờ chủ sân xác nhận'
+                                  : step === 'transfer_pending'
+                                    ? 'Chờ SePay xác nhận'
+                                    : step === 'cancelled'
+                                      ? 'Đã hủy'
+                                      : 'Thanh toán'}
                         </h1>
                         <p className="text-sm text-gray-500">{state?.venue?.name || booking.venue.name}</p>
                     </div>
-                    {/* Countdown (only for PENDING_PAYMENT) */}
-                    {step === 'pending' && !isExpired && remainingSeconds !== null && (
+                    {(step === 'pending' || step === 'transfer_pending') && !isExpired && remainingSeconds !== null && (
                         <div className="bg-yellow-100 border border-yellow-300 px-3 py-1 rounded-full flex items-center gap-2">
                             <Clock className="w-4 h-4 text-yellow-700" />
-                            <span className="font-mono font-bold text-yellow-800">
-                                {formatCountdown(remainingSeconds)}
-                            </span>
+                            <span className="font-mono font-bold text-yellow-800">{formatCountdown(remainingSeconds)}</span>
                         </div>
                     )}
                 </div>
             </header>
 
-            {/* Content */}
             <main className="container mx-auto px-4 py-6">
-                {/* Status banners */}
                 {step === 'confirmed' && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
                         <CheckCircle className="w-6 h-6 text-green-500" />
                         <div>
-                            <p className="font-medium text-green-800">Đặt sân thành công!</p>
-                            <p className="text-sm text-green-600">Chủ sân đã xác nhận đơn đặt của bạn.</p>
+                            <p className="font-medium text-green-800">Thanh toán thành công</p>
+                            <p className="text-sm text-green-600">Booking đã được auto-confirm sau khi SePay nhận giao dịch.</p>
                         </div>
                     </div>
                 )}
@@ -269,7 +251,17 @@ export default function PaymentPage() {
                         <Clock className="w-6 h-6 text-blue-500" />
                         <div>
                             <p className="font-medium text-blue-800">Đang chờ chủ sân xác nhận</p>
-                            <p className="text-sm text-blue-600">Bạn sẽ nhận được thông báo khi đơn được xác nhận.</p>
+                            <p className="text-sm text-blue-600">Luồng này áp dụng cho thanh toán tiền mặt.</p>
+                        </div>
+                    </div>
+                )}
+
+                {step === 'transfer_pending' && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+                        <QrCode className="w-6 h-6 text-emerald-600" />
+                        <div>
+                            <p className="font-medium text-emerald-800">Đang chờ thanh toán chuyển khoản</p>
+                            <p className="text-sm text-emerald-700">Khi SePay detect giao dịch đúng nội dung, booking sẽ tự chuyển sang `CONFIRMED`.</p>
                         </div>
                     </div>
                 )}
@@ -279,40 +271,35 @@ export default function PaymentPage() {
                         <AlertCircle className="w-6 h-6 text-red-500" />
                         <div>
                             <p className="font-medium text-red-800">
-                                {booking.status === 'CANCELLED_BY_MANAGER' ? 'Đã bị hủy bởi chủ sân' : 'Đã hết hạn'}
+                                {booking.status === 'CANCELLED_BY_MANAGER' ? 'Đã bị hủy bởi chủ sân' : 'Booking đã hết hạn hoặc bị hủy'}
                             </p>
-                            {booking.managerCancelReason && (
-                                <p className="text-sm text-red-600">Lý do: {booking.managerCancelReason}</p>
-                            )}
+                            {booking.managerCancelReason && <p className="text-sm text-red-600">Lý do: {booking.managerCancelReason}</p>}
                         </div>
                     </div>
                 )}
 
-                {step === 'pending' && isExpired && (
+                {(step === 'pending' || step === 'transfer_pending') && isExpired && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
                         <AlertCircle className="w-6 h-6 text-red-500" />
                         <div>
-                            <p className="font-medium text-red-800">Hết thời gian giữ chỗ!</p>
-                            <p className="text-sm text-red-600">Khung giờ này đã được nhả. Vui lòng chọn lại.</p>
+                            <p className="font-medium text-red-800">Hết thời gian giữ chỗ</p>
+                            <p className="text-sm text-red-600">Khung giờ này đã được nhả. Vui lòng chọn lại booking khác.</p>
                         </div>
                     </div>
                 )}
 
-                {step === 'pending' && !isExpired && remainingSeconds !== null && (
+                {(step === 'pending' || step === 'transfer_pending') && !isExpired && remainingSeconds !== null && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="font-medium text-yellow-800">Thời gian giữ chỗ còn lại</p>
-                                <p className="text-sm text-yellow-600">Chọn phương thức thanh toán trước khi hết giờ</p>
+                                <p className="text-sm text-yellow-600">Hoàn tất chọn thanh toán trước khi countdown về 0.</p>
                             </div>
-                            <div className="text-3xl font-mono font-bold text-yellow-800">
-                                {formatCountdown(remainingSeconds)}
-                            </div>
+                            <div className="text-3xl font-mono font-bold text-yellow-800">{formatCountdown(remainingSeconds)}</div>
                         </div>
                     </div>
                 )}
 
-                {/* Venue info */}
                 <div className="bg-white rounded-lg border p-4 mb-4">
                     <div className="flex items-start gap-3">
                         <MapPin className="w-5 h-5 text-primary mt-1" />
@@ -326,7 +313,6 @@ export default function PaymentPage() {
                     </div>
                 </div>
 
-                {/* Booking details */}
                 <div className="bg-white rounded-lg border p-4 mb-4">
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                         <Clock className="w-5 h-5 text-primary" />
@@ -338,29 +324,23 @@ export default function PaymentPage() {
                             <span className="text-gray-500">Sân:</span>
                             <span className="font-medium">{booking.court.name}</span>
                         </div>
-
                         <div className="flex justify-between">
                             <span className="text-gray-500">Ngày:</span>
                             <span>{formatDate(booking.date)}</span>
                         </div>
-
                         <div className="flex justify-between">
                             <span className="text-gray-500">Giờ:</span>
                             <span>{booking.startTime} → {booking.endTime}</span>
                         </div>
-
                         <div className="flex justify-between">
                             <span className="text-gray-500">Thời lượng:</span>
                             <span>{booking.durationHours} giờ</span>
                         </div>
-
                         <div className="flex justify-between">
                             <span className="text-gray-500">Đơn giá:</span>
                             <span>{formatPrice(booking.court.pricePerHour)}đ/giờ</span>
                         </div>
-
                         <hr />
-
                         <div className="flex justify-between text-lg font-bold">
                             <span>Tổng cộng:</span>
                             <span className="text-primary">{formatPrice(booking.totalPrice)}đ</span>
@@ -368,7 +348,6 @@ export default function PaymentPage() {
                     </div>
                 </div>
 
-                {/* Payment method selection (only for PENDING_PAYMENT) */}
                 {step === 'pending' && !isExpired && (
                     <div className="bg-white rounded-lg border p-4 mb-4">
                         <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -377,137 +356,118 @@ export default function PaymentPage() {
                         </h3>
 
                         <div className="space-y-3">
-                            {/* Cash option */}
                             <button
                                 onClick={() => setSelectedPaymentMethod('CASH')}
-                                className={`w-full p-4 border-2 rounded-lg flex items-center gap-4 transition ${selectedPaymentMethod === 'CASH'
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                    }`}
+                                className={`w-full p-4 border-2 rounded-lg flex items-center gap-4 transition ${
+                                    selectedPaymentMethod === 'CASH' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                                }`}
                             >
                                 <Banknote className={`w-8 h-8 ${selectedPaymentMethod === 'CASH' ? 'text-primary' : 'text-gray-400'}`} />
                                 <div className="flex-1 text-left">
                                     <p className="font-medium">Thanh toán tiền mặt</p>
-                                    <p className="text-sm text-gray-500">Thanh toán trực tiếp khi đến sân</p>
+                                    <p className="text-sm text-gray-500">Chủ sân xác nhận thủ công khi bạn tới chơi.</p>
                                 </div>
-                                {selectedPaymentMethod === 'CASH' && (
-                                    <Check className="w-6 h-6 text-primary" />
-                                )}
+                                {selectedPaymentMethod === 'CASH' && <Check className="w-6 h-6 text-primary" />}
                             </button>
 
-                            {/* Transfer option */}
                             <button
                                 onClick={() => setSelectedPaymentMethod('TRANSFER')}
-                                className={`w-full p-4 border-2 rounded-lg flex items-center gap-4 transition ${selectedPaymentMethod === 'TRANSFER'
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                    }`}
+                                className={`w-full p-4 border-2 rounded-lg flex items-center gap-4 transition ${
+                                    selectedPaymentMethod === 'TRANSFER' ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                                }`}
                             >
                                 <QrCode className={`w-8 h-8 ${selectedPaymentMethod === 'TRANSFER' ? 'text-primary' : 'text-gray-400'}`} />
                                 <div className="flex-1 text-left">
-                                    <p className="font-medium">Chuyển khoản ngân hàng</p>
-                                    <p className="text-sm text-gray-500">Quét mã QR để thanh toán</p>
+                                    <p className="font-medium">Chuyển khoản SePay</p>
+                                    <p className="text-sm text-gray-500">Tự động xác nhận khi giao dịch được SePay match đúng reference.</p>
                                 </div>
-                                {selectedPaymentMethod === 'TRANSFER' && (
-                                    <Check className="w-6 h-6 text-primary" />
-                                )}
+                                {selectedPaymentMethod === 'TRANSFER' && <Check className="w-6 h-6 text-primary" />}
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* VietQR display (for TRANSFER in WAITING_MANAGER_CONFIRM) */}
-                {showQRCode && qrUrl && (
+                {showTransferCard && (
                     <div className="bg-white rounded-lg border p-4 mb-4">
                         <h3 className="font-semibold mb-4 flex items-center gap-2">
                             <QrCode className="w-5 h-5 text-primary" />
-                            Quét mã QR để thanh toán
+                            Quét QR để thanh toán
                         </h3>
 
                         <div className="text-center">
-                            <img
-                                src={qrUrl}
-                                alt="VietQR"
-                                className="w-64 h-auto mx-auto mb-4 border rounded-lg"
-                            />
+                            <img src={transferSession.qrCodeUrl} alt="SePay QR" className="w-64 h-auto mx-auto mb-4 border rounded-lg" />
 
-                            <div className="text-sm text-gray-600 mb-4">
-                                <p><strong>Ngân hàng:</strong> {booking.venue.bankName}</p>
-                                <p><strong>Số tài khoản:</strong> {booking.venue.bankAccountNumber}</p>
-                                <p><strong>Chủ tài khoản:</strong> {booking.venue.bankAccountName}</p>
+                            <div className="space-y-1 text-sm text-gray-600 mb-4">
+                                <p><strong>Ngân hàng:</strong> {transferSession.bankAccount.bankName}</p>
+                                <p><strong>Số tài khoản:</strong> {transferSession.bankAccount.accountNumber}</p>
+                                <p><strong>Chủ tài khoản:</strong> {transferSession.bankAccount.accountName}</p>
                                 <p><strong>Số tiền:</strong> {formatPrice(booking.totalPrice)}đ</p>
+                                <p><strong>Nội dung:</strong> {transferSession.referenceCode}</p>
                             </div>
 
-                            {!transferDeclared ? (
-                                <button
-                                    onClick={handleDeclareTransfer}
-                                    disabled={isSubmitting}
-                                    className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {isSubmitting ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <Check className="w-5 h-5" />
-                                    )}
-                                    Tôi đã chuyển khoản
-                                </button>
-                            ) : (
-                                <div className="flex items-center justify-center gap-2 py-3 bg-green-100 text-green-700 rounded-lg">
-                                    <CheckCircle className="w-5 h-5" />
-                                    Đã xác nhận chuyển khoản
-                                </div>
-                            )}
+                            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">
+                                Không cần bấm "Tôi đã chuyển khoản". Khi SePay detect giao dịch chứa đúng nội dung `{transferSession.referenceCode}`, hệ thống sẽ tự động confirm.
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Waiting for manager (CASH in WAITING_MANAGER_CONFIRM) */}
-                {step === 'waiting_confirm' && selectedPaymentMethod === 'CASH' && (
+                {step === 'waiting_confirm' && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-center">
                         <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-3" />
                         <p className="font-medium text-blue-800">Đang chờ chủ sân xác nhận</p>
-                        <p className="text-sm text-blue-600 mt-1">Bạn sẽ thanh toán tiền mặt khi đến sân</p>
+                        <p className="text-sm text-blue-600 mt-1">Bạn sẽ thanh toán tiền mặt khi đến sân.</p>
                     </div>
                 )}
             </main>
 
-            {/* Footer */}
             <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
                 <div className="container mx-auto flex items-center justify-between">
                     <div>
                         <p className="text-sm text-gray-500">Tổng cộng</p>
-                        <p className="text-xl font-bold text-primary">
-                            {formatPrice(booking.totalPrice)}đ
-                        </p>
+                        <p className="text-xl font-bold text-primary">{formatPrice(booking.totalPrice)}đ</p>
                     </div>
-                    {step === 'pending' && isExpired && (
-                        <Button onClick={() => navigate('/')}>
-                            Chọn khung giờ khác
+
+                    {step === 'pending' && !isExpired && selectedPaymentMethod === 'CASH' && (
+                        <Button onClick={() => void handleChooseCash()} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                            Xác nhận tiền mặt
                         </Button>
                     )}
-                    {step === 'pending' && !isExpired && (
-                        <Button
-                            onClick={handleChoosePaymentMethod}
-                            disabled={!selectedPaymentMethod || isSubmitting}
-                        >
-                            {isSubmitting ? (
-                                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                            ) : null}
-                            Xác nhận thanh toán
+
+                    {step === 'pending' && !isExpired && selectedPaymentMethod === 'TRANSFER' && (
+                        <Button onClick={() => void handleCreateTransferSession()} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                            Tạo QR chuyển khoản
                         </Button>
                     )}
+
+                    {(step === 'pending' && !selectedPaymentMethod) || (step === 'pending' && isExpired) ? (
+                        <Button onClick={() => navigate('/')} variant="secondary">
+                            {isExpired ? 'Chọn khung giờ khác' : 'Chọn phương thức'}
+                        </Button>
+                    ) : null}
+
+                    {step === 'transfer_pending' && (
+                        <Button onClick={() => void handleCreateTransferSession()} variant="secondary" disabled={isSubmitting}>
+                            Làm mới QR
+                        </Button>
+                    )}
+
                     {step === 'confirmed' && (
-                        <Button onClick={() => navigate('/bookings')}>
+                        <Button onClick={() => navigate('/me/bookings')}>
                             Xem lịch sử đặt sân
                         </Button>
                     )}
+
                     {step === 'cancelled' && (
                         <Button onClick={() => navigate('/')}>
                             Đặt sân mới
                         </Button>
                     )}
+
                     {step === 'waiting_confirm' && (
-                        <Button onClick={() => navigate('/bookings')} variant="secondary">
+                        <Button onClick={() => navigate('/me/bookings')} variant="secondary">
                             Xem lịch sử
                         </Button>
                     )}

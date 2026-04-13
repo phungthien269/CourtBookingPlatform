@@ -6,6 +6,7 @@ const sidebarItems = [
     { path: '/admin', label: 'Dashboard', icon: '📊' },
     { path: '/admin/managers', label: 'Quản lý Manager', icon: '👥' },
     { path: '/admin/approvals', label: 'Duyệt gia hạn', icon: '✅' },
+    { path: '/admin/payment-reconciliation', label: 'Đối soát thanh toán', icon: '💳' },
     { path: '/admin/logs', label: 'Nhật ký hệ thống', icon: '📋' },
 ];
 

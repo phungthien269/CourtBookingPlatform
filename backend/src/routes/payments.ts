@@ -1,47 +1,54 @@
-import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { appConfig } from '../lib/config.js';
-import { respondError, respondSuccess } from '../lib/api.js';
-import { processBankWebhook } from '../services/payment.service.js';
+import { logger } from '../lib/logger.js';
+import { processSepayWebhook } from '../services/payment.service.js';
 
 const router = Router();
 
-const bankWebhookSchema = z.object({
-    providerEventId: z.string().min(8),
-    providerTxnId: z.string().min(3),
-    referenceCode: z.string().min(6),
-    amount: z.number().int().positive(),
-    paidAt: z.string().datetime(),
-    provider: z.string().optional(),
-    metadata: z.record(z.any()).optional(),
+const sepayWebhookSchema = z.object({
+    id: z.number().int(),
+    gateway: z.string(),
+    transactionDate: z.string(),
+    accountNumber: z.string(),
+    subAccount: z.string().nullable().optional(),
+    transferType: z.enum(['in', 'out']),
+    transferAmount: z.number().positive(),
+    accumulated: z.number().optional(),
+    code: z.string().nullable().optional(),
+    content: z.string(),
+    referenceCode: z.string(),
+    description: z.string().optional(),
+    bankTransferId: z.string().nullable().optional(),
 });
 
-function verifySignature(rawBody: string, signature: string | undefined) {
-    if (!signature) return false;
-    const expected = crypto
-        .createHmac('sha256', appConfig.paymentWebhookSecret)
-        .update(rawBody)
-        .digest('hex');
-    if (signature.length !== expected.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-}
+router.post('/sepay-webhook', async (req: Request, res: Response) => {
+    const authorization = req.headers.authorization;
 
-router.post('/webhook/bank', async (req: Request, res: Response) => {
-    const signature = req.headers['x-signature'];
-    const rawBody = (req as Request & { rawBody?: string }).rawBody || JSON.stringify(req.body);
-
-    if (typeof signature !== 'string' || !verifySignature(rawBody, signature)) {
-        return respondError(res, 401, 'INVALID_SIGNATURE', 'Webhook signature không hợp lệ');
+    if (!appConfig.sepayApiKey || authorization !== `Apikey ${appConfig.sepayApiKey}`) {
+        logger.warn({
+            event: 'payment.sepay_webhook_unauthorized',
+            authorization: typeof authorization === 'string' ? 'provided' : 'missing',
+        });
+        return res.status(200).json({ success: false });
     }
 
-    const parsed = bankWebhookSchema.safeParse(req.body);
+    const parsed = sepayWebhookSchema.safeParse(req.body);
     if (!parsed.success) {
-        return respondError(res, 400, 'VALIDATION_ERROR', parsed.error.errors[0]?.message || 'Payload không hợp lệ');
+        logger.warn({
+            event: 'payment.sepay_webhook_invalid_payload',
+            issues: parsed.error.errors,
+        });
+        return res.status(200).json({ success: false });
     }
 
-    const result = await processBankWebhook(parsed.data);
-    return respondSuccess(res, result);
+    try {
+        await processSepayWebhook(parsed.data);
+    } catch (error) {
+        logger.error({ event: 'payment.sepay_webhook_failed', error, payload: parsed.data });
+    }
+
+    return res.status(200).json({ success: true });
 });
 
 export default router;

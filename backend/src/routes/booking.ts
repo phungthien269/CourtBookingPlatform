@@ -16,6 +16,7 @@ import {
     declareTransfer,
     getBookingByIdExtended,
 } from '../services/booking.service.js';
+import { createTransferSession } from '../services/payment.service.js';
 
 const router = Router();
 
@@ -295,6 +296,33 @@ router.post('/:id/declare-transfer', authMiddleware, async (req: AuthRequest, re
         return res.status(500).json({
             success: false,
             error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
+        });
+    }
+});
+
+router.post('/:id/transfer-session', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                error: { code: 'UNAUTHORIZED', message: 'Bạn cần đăng nhập' },
+            });
+        }
+
+        const data = await createTransferSession(req.params.id, userId);
+        return res.json({ success: true, data });
+    } catch (error: unknown) {
+        const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
+        const statusMap: Record<string, number> = {
+            BOOKING_NOT_FOUND: 404,
+            BOOKING_NOT_PENDING_PAYMENT: 400,
+            BOOKING_HOLD_EXPIRED: 400,
+        };
+
+        return res.status(statusMap[code] || 500).json({
+            success: false,
+            error: { code, message: code },
         });
     }
 });

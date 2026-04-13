@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
 import { appConfig } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
-import { broadcast, sendToUser } from '../lib/websocket.js';
+import { sendToUser } from '../lib/websocket.js';
 import { createAndDispatch, notifyBookingStatusChange } from './notification.service.js';
 
 type TransferSessionResult = {
@@ -18,14 +18,20 @@ type TransferSessionResult = {
     };
 };
 
-type BankWebhookPayload = {
-    providerEventId: string;
-    providerTxnId: string;
+export type SepayWebhookPayload = {
+    id: number;
+    gateway: string;
+    transactionDate: string;
+    accountNumber: string;
+    subAccount?: string | null;
+    transferType: 'in' | 'out';
+    transferAmount: number;
+    accumulated?: number;
+    code?: string | null;
+    content: string;
     referenceCode: string;
-    amount: number;
-    paidAt: string;
-    provider?: string;
-    metadata?: Record<string, unknown>;
+    description?: string;
+    bankTransferId?: string | null;
 };
 
 export interface PaymentReconciliationItemDTO {
@@ -55,14 +61,26 @@ function buildReferenceCode(bookingId: string) {
     return `CBP${bookingPart}${timePart}`;
 }
 
+function normalizeSepayReference(payload: SepayWebhookPayload) {
+    const extracted = payload.content.match(/CBP[A-Z0-9]{10,}/i)?.[0] || payload.referenceCode || '';
+    const normalized = extracted.replace(/\s+/g, '').toUpperCase();
+    return normalized || null;
+}
+
+function parseSepayTransactionDate(value: string) {
+    const normalized = value.trim().replace(' ', 'T');
+    return new Date(normalized.endsWith('Z') || normalized.includes('+') ? normalized : `${normalized}+07:00`);
+}
+
 export function buildTransferQrUrl(amount: number, referenceCode: string) {
     const params = new URLSearchParams({
+        bank: appConfig.platformBank.name,
+        acc: appConfig.platformBank.accountNumber,
         amount: String(amount),
-        addInfo: referenceCode,
-        accountName: appConfig.platformBank.accountName,
+        des: referenceCode,
     });
 
-    return `${appConfig.platformBank.qrBaseUrl}?${params.toString()}`;
+    return `https://qr.sepay.vn/img?${params.toString()}`;
 }
 
 export async function createTransferSession(bookingId: string, userId: string): Promise<TransferSessionResult> {
@@ -112,7 +130,7 @@ export async function createTransferSession(bookingId: string, userId: string): 
                 where: { bookingId: booking.id },
                 data: {
                     method: 'TRANSFER',
-                    provider: 'BANK_WEBHOOK_AGGREGATOR',
+                    provider: 'SEPAY',
                     amount: booking.totalPrice,
                     referenceCode,
                     transferSessionExpiresAt: expiresAt,
@@ -124,7 +142,7 @@ export async function createTransferSession(bookingId: string, userId: string): 
                 data: {
                     bookingId: booking.id,
                     method: 'TRANSFER',
-                    provider: 'BANK_WEBHOOK_AGGREGATOR',
+                    provider: 'SEPAY',
                     amount: booking.totalPrice,
                     referenceCode,
                     transferSessionExpiresAt: expiresAt,
@@ -151,7 +169,7 @@ export async function createTransferSession(bookingId: string, userId: string): 
 async function recordWebhookEvent(input: {
     providerEventId: string;
     provider: string;
-    referenceCode?: string;
+    referenceCode?: string | null;
     payload: unknown;
     processingStatus: string;
     paymentId?: string;
@@ -161,8 +179,8 @@ async function recordWebhookEvent(input: {
         data: {
             providerEventId: input.providerEventId,
             provider: input.provider,
-            referenceCode: input.referenceCode,
-            payload: input.payload as object,
+            referenceCode: input.referenceCode || null,
+            payload: input.payload as Prisma.InputJsonValue,
             processingStatus: input.processingStatus,
             paymentId: input.paymentId,
             bookingId: input.bookingId,
@@ -171,9 +189,18 @@ async function recordWebhookEvent(input: {
     });
 }
 
-export async function processBankWebhook(payload: BankWebhookPayload) {
+export async function processSepayWebhook(payload: SepayWebhookPayload) {
+    if (payload.transferType !== 'in') {
+        return {
+            acknowledged: true,
+            duplicate: false,
+            processingStatus: 'IGNORED_OUTGOING',
+        };
+    }
+
+    const providerEventId = String(payload.id);
     const existingEvent = await prisma.paymentWebhookEvent.findUnique({
-        where: { providerEventId: payload.providerEventId },
+        where: { providerEventId },
     });
 
     if (existingEvent) {
@@ -184,9 +211,37 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
         };
     }
 
-    const provider = payload.provider || appConfig.paymentProviderName;
+    const referenceCode = normalizeSepayReference(payload);
+    const provider = 'SEPAY';
+    const providerTxnId = payload.bankTransferId || payload.code || providerEventId;
+
+    if (!referenceCode) {
+        await recordWebhookEvent({
+            providerEventId,
+            provider,
+            payload,
+            processingStatus: 'UNMATCHED',
+        });
+
+        await prisma.auditLog.create({
+            data: {
+                eventType: 'BOOKING',
+                actorRole: 'SYSTEM',
+                action: 'PAYMENT_WEBHOOK_UNMATCHED',
+                targetType: 'PAYMENT',
+                details: payload as unknown as Prisma.InputJsonValue,
+            },
+        });
+
+        return {
+            acknowledged: true,
+            duplicate: false,
+            processingStatus: 'UNMATCHED',
+        };
+    }
+
     const payment = await prisma.payment.findFirst({
-        where: { referenceCode: payload.referenceCode },
+        where: { referenceCode },
         include: {
             booking: {
                 include: {
@@ -219,9 +274,9 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
 
     if (!payment) {
         await recordWebhookEvent({
-            providerEventId: payload.providerEventId,
+            providerEventId,
             provider,
-            referenceCode: payload.referenceCode,
+            referenceCode,
             payload,
             processingStatus: 'UNMATCHED',
         });
@@ -245,14 +300,14 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
 
     const booking = payment.booking;
     const now = new Date();
-    const paidAt = new Date(payload.paidAt);
+    const paidAt = parseSepayTransactionDate(payload.transactionDate);
 
-    if (payment.amount !== payload.amount) {
+    if (payment.amount !== payload.transferAmount) {
         await prisma.$transaction([
             prisma.payment.update({
                 where: { id: payment.id },
                 data: {
-                    providerTxnId: payload.providerTxnId,
+                    providerTxnId,
                     webhookReceivedAt: now,
                     rawPayload: payload as unknown as Prisma.InputJsonValue,
                     reconciliationStatus: 'AMOUNT_MISMATCH',
@@ -267,17 +322,17 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
                     targetId: booking.id,
                     details: {
                         expectedAmount: payment.amount,
-                        receivedAmount: payload.amount,
-                        referenceCode: payload.referenceCode,
+                        receivedAmount: payload.transferAmount,
+                        referenceCode,
                     },
                 },
             }),
         ]);
 
         await recordWebhookEvent({
-            providerEventId: payload.providerEventId,
+            providerEventId,
             provider,
-            referenceCode: payload.referenceCode,
+            referenceCode,
             payload,
             processingStatus: 'AMOUNT_MISMATCH',
             paymentId: payment.id,
@@ -301,7 +356,7 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
             prisma.payment.update({
                 where: { id: payment.id },
                 data: {
-                    providerTxnId: payload.providerTxnId,
+                    providerTxnId,
                     webhookReceivedAt: now,
                     rawPayload: payload as unknown as Prisma.InputJsonValue,
                     reconciliationStatus: 'LATE_PAYMENT',
@@ -316,7 +371,7 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
                     targetId: booking.id,
                     details: {
                         bookingStatus: booking.status,
-                        referenceCode: payload.referenceCode,
+                        referenceCode,
                         paidAt: paidAt.toISOString(),
                     },
                 },
@@ -324,9 +379,9 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
         ]);
 
         await recordWebhookEvent({
-            providerEventId: payload.providerEventId,
+            providerEventId,
             provider,
-            referenceCode: payload.referenceCode,
+            referenceCode,
             payload,
             processingStatus: 'LATE_PAYMENT',
             paymentId: payment.id,
@@ -344,10 +399,11 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
         prisma.payment.update({
             where: { id: payment.id },
             data: {
-                providerTxnId: payload.providerTxnId,
+                providerTxnId,
                 webhookReceivedAt: now,
                 matchedAt: now,
                 confirmedAt: now,
+                transferTicked: true,
                 rawPayload: payload as unknown as Prisma.InputJsonValue,
                 reconciliationStatus: 'MATCHED',
             },
@@ -356,6 +412,7 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
             where: { id: booking.id },
             data: {
                 status: 'CONFIRMED',
+                paymentDeclaredAt: now,
                 confirmedAt: now,
                 pendingExpiresAt: null,
                 waitingConfirmSince: null,
@@ -369,33 +426,24 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
                 targetType: 'BOOKING',
                 targetId: booking.id,
                 details: {
-                    referenceCode: payload.referenceCode,
-                    providerTxnId: payload.providerTxnId,
-                    amount: payload.amount,
+                    referenceCode,
+                    providerTxnId,
+                    amount: payload.transferAmount,
                 },
             },
         }),
     ]);
 
     await recordWebhookEvent({
-        providerEventId: payload.providerEventId,
+        providerEventId,
         provider,
-        referenceCode: payload.referenceCode,
+        referenceCode,
         payload,
         processingStatus: 'MATCHED',
         paymentId: payment.id,
         bookingId: booking.id,
     });
 
-    broadcast({
-        type: 'booking.payment.confirmed',
-        payload: {
-            bookingId: booking.id,
-            userId: booking.userId,
-            venueId: booking.court.venue.id,
-            referenceCode: payload.referenceCode,
-        },
-    });
     sendToUser(booking.user.id, {
         type: 'booking:updated',
         payload: { bookingId: booking.id, status: 'CONFIRMED', action: 'payment_confirmed' },
@@ -429,7 +477,7 @@ export async function processBankWebhook(payload: BankWebhookPayload) {
     logger.info({
         event: 'payment.webhook.matched',
         bookingId: booking.id,
-        referenceCode: payload.referenceCode,
+        referenceCode,
     });
 
     return {
@@ -467,15 +515,15 @@ export async function listPaymentReconciliationItems(): Promise<PaymentReconcili
     });
 
     return events.map((event) => {
-        const payload = event.payload as BankWebhookPayload;
+        const payload = event.payload as SepayWebhookPayload;
         return {
             id: event.id,
             processingStatus: event.processingStatus,
             receivedAt: event.receivedAt.toISOString(),
             referenceCode: event.referenceCode,
             providerEventId: event.providerEventId,
-            providerTxnId: payload.providerTxnId || null,
-            amount: typeof payload.amount === 'number' ? payload.amount : null,
+            providerTxnId: payload.bankTransferId || payload.code || null,
+            amount: typeof payload.transferAmount === 'number' ? payload.transferAmount : null,
             booking: event.booking
                 ? {
                     id: event.booking.id,

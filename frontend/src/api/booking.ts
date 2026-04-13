@@ -288,6 +288,19 @@ export interface BookingDetailExtended {
     user?: { id: string; name: string | null; email: string };
 }
 
+export interface TransferSessionResult {
+    bookingId: string;
+    status: string;
+    referenceCode: string;
+    expiresAt: string;
+    qrCodeUrl: string;
+    bankAccount: {
+        bankName: string;
+        accountName: string;
+        accountNumber: string;
+    };
+}
+
 // ==================== PHASE 4 API FUNCTIONS ====================
 
 /**
@@ -348,6 +361,27 @@ export async function declareTransfer(
     try {
         const response = await axios.post<ApiResponse<{ bookingId: string; status: string }>>(
             `${API_BASE}/bookings/${bookingId}/declare-transfer`,
+            {},
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            }
+        );
+        return { success: true, data: response.data.data };
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+            return { success: false, error: err.response.data.error };
+        }
+        return { success: false, error: { code: 'NETWORK_ERROR', message: 'Lỗi kết nối' } };
+    }
+}
+
+export async function createTransferSession(
+    bookingId: string,
+    token: string
+): Promise<{ success: true; data: TransferSessionResult } | { success: false; error: { code: string; message: string } }> {
+    try {
+        const response = await axios.post<ApiResponse<TransferSessionResult>>(
+            `${API_BASE}/bookings/${bookingId}/transfer-session`,
             {},
             {
                 headers: { Authorization: `Bearer ${token}` },

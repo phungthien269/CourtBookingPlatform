@@ -11,6 +11,7 @@ import {
     rejectRenewalRequest,
     updateManagerAccountStatus,
 } from '../services/adminPortal.service.js';
+import { listPaymentReconciliationItems } from '../services/payment.service.js';
 
 const router = Router();
 
@@ -223,6 +224,19 @@ router.get('/audit-logs', authMiddleware, requireAdmin, async (req: AuthRequest,
         const mapped = mapAdminPortalError(error);
         console.error('❌ List audit logs error:', error);
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
+    }
+});
+
+router.get('/payment-reconciliation', authMiddleware, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = requireUserId(req, res);
+        if (!userId) return;
+
+        const data = await listPaymentReconciliationItems();
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error('❌ List payment reconciliation error:', error);
+        return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' } });
     }
 });
 

@@ -19,6 +19,7 @@ import { AdminDashboard } from './pages/admin/Dashboard';
 import { AdminManagers } from './pages/admin/Managers';
 import { AdminApprovals } from './pages/admin/Approvals';
 import { AdminAuditLogs } from './pages/admin/AuditLogs';
+import { AdminPaymentReconciliation } from './pages/admin/PaymentReconciliation';
 
 // Phase 2: Booking pages
 import CourtLayoutPage from './pages/booking/CourtLayoutPage';
@@ -195,6 +196,7 @@ export default function App() {
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/admin/managers" element={<AdminManagers />} />
                     <Route path="/admin/approvals" element={<AdminApprovals />} />
+                    <Route path="/admin/payment-reconciliation" element={<AdminPaymentReconciliation />} />
                     <Route path="/admin/logs" element={<AdminAuditLogs />} />
                 </Route>
 

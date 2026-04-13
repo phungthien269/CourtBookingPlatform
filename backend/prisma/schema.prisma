@@ -44,6 +44,22 @@ enum PaymentMethod {
   TRANSFER
 }
 
+enum PaymentProvider {
+  MANUAL
+  BANK_WEBHOOK_AGGREGATOR
+  SEPAY
+}
+
+enum PaymentReconciliationStatus {
+  NOT_REQUIRED
+  AWAITING_WEBHOOK
+  MATCHED
+  LATE_PAYMENT
+  AMOUNT_MISMATCH
+  UNMATCHED
+  RESOLVED
+}
+
 // Phase 5: Chat sender role
 enum SenderRole {
   USER
@@ -81,6 +97,7 @@ model User {
 
   // Relations
   otpVerifications OtpVerification[]
+  passwordResetTokens password_reset_tokens[]
   manager          Manager?
   bookings         Booking[]
   reviews          Review[]
@@ -255,6 +272,7 @@ model Booking {
   court        Court         @relation(fields: [courtId], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   payment      Payment?
+  webhookEvents PaymentWebhookEvent[]
   review       Review?
   chatThread   ChatThread?
 
@@ -283,17 +301,68 @@ model CourtBlackout {
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  bookingId       String        @unique
-  method          PaymentMethod
-  amount          Int
-  transferTicked  Boolean       @default(false)
-  confirmedAt     DateTime?
-  createdAt       DateTime      @default(now())
+  id                       String        @id @default(uuid())
+  bookingId                String        @unique
+  method                   PaymentMethod
+  amount                   Int
+  transferTicked           Boolean       @default(false)
+  confirmedAt              DateTime?
+  createdAt                DateTime      @default(now())
+  provider                 PaymentProvider @default(MANUAL)
+  referenceCode            String?       @unique
+  transferSessionExpiresAt DateTime?
+  providerTxnId            String?
+  webhookReceivedAt        DateTime?
+  matchedAt                DateTime?
+  rawPayload               Json?
+  reconciliationStatus     PaymentReconciliationStatus @default(NOT_REQUIRED)
+  updatedAt                DateTime      @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking       Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  webhookEvents PaymentWebhookEvent[]
 
   @@map("payments")
+}
+
+model PaymentWebhookEvent {
+  id               String   @id @default(uuid())
+  providerEventId  String   @unique
+  provider         String
+  referenceCode    String?
+  payload          Json
+  processingStatus String   @default("RECEIVED")
+  paymentId        String?
+  bookingId        String?
+  receivedAt       DateTime @default(now())
+  processedAt      DateTime?
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@index([referenceCode])
+  @@index([processingStatus, receivedAt])
+  @@map("payment_webhook_events")
+}
+
+model SystemHeartbeat {
+  key        String   @id
+  lastSeenAt DateTime @updatedAt
+  meta       Json?
+
+  @@map("system_heartbeats")
+}
+
+model password_reset_tokens {
+  id        String   @id
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  users User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used, expiresAt])
 }
 
 model Review {
