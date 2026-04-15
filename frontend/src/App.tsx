@@ -11,6 +11,8 @@ import { VenueDetail } from './pages/venue/VenueDetail';
 import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
 import { VerifyOtp } from './pages/auth/VerifyOtp';
+import { ForgotPassword } from './pages/auth/ForgotPassword';
+import { ResetPassword } from './pages/auth/ResetPassword';
 import { MyBookings } from './pages/user/MyBookings';
 import { BookingDetail } from './pages/user/BookingDetail';
 import { Chat } from './pages/user/Chat';
@@ -144,6 +146,8 @@ export default function App() {
                     <Route path="/auth/login" element={<Login />} />
                     <Route path="/auth/register" element={<Register />} />
                     <Route path="/auth/verify-otp" element={<VerifyOtp />} />
+                    <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/auth/reset-password" element={<ResetPassword />} />
                 </Route>
 
                 {/* User routes */}
