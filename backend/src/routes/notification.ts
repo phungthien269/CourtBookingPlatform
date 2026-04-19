@@ -12,6 +12,8 @@ import {
     markAllAsRead,
 } from '../services/notification.service';
 import { NotificationTargetRole } from '@prisma/client';
+import { respondInternalError, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -33,10 +35,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
         const parsed = listSchema.safeParse(req.query);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         const role: NotificationTargetRole = req.userRole === 'MANAGER' ? 'MANAGER' : 'USER';
@@ -56,11 +55,8 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
         return res.json(result);
     } catch (error) {
-        console.error('List notifications error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'notification.list_failed', error, userId: req.userId, query: req.query });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -84,11 +80,8 @@ router.get('/unread-count', authMiddleware, async (req: AuthRequest, res: Respon
 
         return res.json(result);
     } catch (error) {
-        console.error('Get unread count error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'notification.unread_count_failed', error, userId: req.userId });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -110,11 +103,13 @@ router.post('/:id/read', authMiddleware, async (req: AuthRequest, res: Response)
 
         return res.json(result);
     } catch (error) {
-        console.error('Mark as read error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
+        logger.error({
+            event: 'notification.mark_as_read_failed',
+            error,
+            userId: req.userId,
+            notificationId: req.params.id,
         });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -134,11 +129,8 @@ router.post('/read-all', authMiddleware, async (req: AuthRequest, res: Response)
 
         return res.json(result);
     } catch (error) {
-        console.error('Mark all as read error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'notification.mark_all_as_read_failed', error, userId: req.userId });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 

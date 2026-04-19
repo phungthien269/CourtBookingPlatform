@@ -12,6 +12,7 @@ import {
     updateManagerAccountStatus,
 } from '../services/adminPortal.service.js';
 import { listPaymentReconciliationItems } from '../services/payment.service.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -112,7 +113,7 @@ router.get('/overview', authMiddleware, requireAdmin, async (req: AuthRequest, r
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ Get admin overview error:', error);
+        logger.error({ event: 'admin.overview_failed', error, adminUserId: req.userId });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -134,7 +135,7 @@ router.get('/renewal-requests', authMiddleware, requireAdmin, async (req: AuthRe
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ List renewal requests error:', error);
+        logger.error({ event: 'admin.renewal_requests_failed', error, adminUserId: req.userId, query: req.query });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -156,7 +157,7 @@ router.get('/managers', authMiddleware, requireAdmin, async (req: AuthRequest, r
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ List managers error:', error);
+        logger.error({ event: 'admin.managers_failed', error, adminUserId: req.userId, query: req.query });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -178,7 +179,7 @@ router.post('/managers', authMiddleware, requireAdmin, async (req: AuthRequest, 
         return res.status(201).json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ Create manager error:', error);
+        logger.error({ event: 'admin.manager_create_failed', error, adminUserId: req.userId, body: req.body });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -200,7 +201,13 @@ router.post('/managers/:id/status', authMiddleware, requireAdmin, async (req: Au
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ Update manager status error:', error);
+        logger.error({
+            event: 'admin.manager_status_update_failed',
+            error,
+            adminUserId: req.userId,
+            managerId: req.params.id,
+            body: req.body,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -222,7 +229,7 @@ router.get('/audit-logs', authMiddleware, requireAdmin, async (req: AuthRequest,
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ List audit logs error:', error);
+        logger.error({ event: 'admin.audit_logs_failed', error, adminUserId: req.userId, query: req.query });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -235,7 +242,7 @@ router.get('/payment-reconciliation', authMiddleware, requireAdmin, async (req: 
         const data = await listPaymentReconciliationItems();
         return res.json({ success: true, data });
     } catch (error) {
-        console.error('❌ List payment reconciliation error:', error);
+        logger.error({ event: 'admin.payment_reconciliation_failed', error, adminUserId: req.userId });
         return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' } });
     }
 });
@@ -257,7 +264,13 @@ router.post('/renewal-requests/:id/approve', authMiddleware, requireAdmin, async
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ Approve renewal request error:', error);
+        logger.error({
+            event: 'admin.renewal_request_approve_failed',
+            error,
+            adminUserId: req.userId,
+            requestId: req.params.id,
+            body: req.body,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -279,7 +292,13 @@ router.post('/renewal-requests/:id/reject', authMiddleware, requireAdmin, async 
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapAdminPortalError(error);
-        console.error('❌ Reject renewal request error:', error);
+        logger.error({
+            event: 'admin.renewal_request_reject_failed',
+            error,
+            adminUserId: req.userId,
+            requestId: req.params.id,
+            body: req.body,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });

@@ -222,7 +222,8 @@ export interface ManagerAnalyticsDTO {
 }
 
 export interface ManagerSubscriptionDTO {
-    venueName: string;
+    hasVenue: boolean;
+    venueName: string | null;
     displayName: string;
     subscription: {
         expiresAt: string | null;
@@ -240,7 +241,7 @@ export interface ManagerSubscriptionDTO {
         qrCodeUrl: string;
         transferContent: string;
         note: string;
-    };
+    } | null;
     requests: Array<{
         id: string;
         months: number;
@@ -1340,7 +1341,24 @@ export async function getManagerAnalytics(
 
 export async function getManagerSubscription(userId: string): Promise<ManagerSubscriptionDTO> {
     const workspace = await getManagerWorkspace(userId);
-    ensureManagerWorkspace(workspace);
+    if (!workspace) {
+        throw new Error('MANAGER_NOT_FOUND');
+    }
+
+    if (!workspace.venue) {
+        return {
+            hasVenue: false,
+            venueName: null,
+            displayName: workspace.displayName,
+            subscription: {
+                ...getSubscriptionStatus(workspace.subscriptionExpiresAt, 0),
+                activeCourtCount: 0,
+                totalCourtCount: 0,
+            },
+            paymentInstruction: null,
+            requests: [],
+        };
+    }
 
     const activeCourtCount = workspace.venue.courts.filter((court) => court.isActive).length;
     const subscription = getSubscriptionStatus(workspace.subscriptionExpiresAt, activeCourtCount);
@@ -1358,6 +1376,7 @@ export async function getManagerSubscription(userId: string): Promise<ManagerSub
     });
 
     return {
+        hasVenue: true,
         venueName: workspace.venue.name,
         displayName: workspace.displayName,
         subscription: {

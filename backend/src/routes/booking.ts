@@ -17,6 +17,8 @@ import {
     getBookingByIdExtended,
 } from '../services/booking.service.js';
 import { createTransferSession } from '../services/payment.service.js';
+import { respondError, respondInternalError, respondSuccess, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -55,13 +57,7 @@ router.post('/quote', authMiddleware, async (req: Request, res: Response) => {
         // Validate request body
         const parsed = quoteRequestSchema.safeParse(req.body);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    code: 'INVALID_INPUT',
-                    message: parsed.error.errors[0]?.message || 'Invalid request',
-                },
-            });
+            return respondValidationError(res, parsed.error.errors[0]?.message || 'Dữ liệu không hợp lệ');
         }
 
         const result = await getBookingQuote(parsed.data);
@@ -77,30 +73,21 @@ router.post('/quote', authMiddleware, async (req: Request, res: Response) => {
             });
         }
 
-        return res.json({
-            success: true,
-            data: {
-                valid: true,
-                courtId: result.courtId,
-                courtName: result.courtName,
-                date: result.date,
-                startTime: result.startTime,
-                endTime: result.endTime,
-                endDate: result.endDate,
-                durationHours: result.durationHours,
-                pricePerHour: result.pricePerHour,
-                totalPrice: result.totalPrice,
-            },
+        return respondSuccess(res, {
+            valid: true,
+            courtId: result.courtId,
+            courtName: result.courtName,
+            date: result.date,
+            startTime: result.startTime,
+            endTime: result.endTime,
+            endDate: result.endDate,
+            durationHours: result.durationHours,
+            pricePerHour: result.pricePerHour,
+            totalPrice: result.totalPrice,
         });
     } catch (error) {
-        console.error('Error getting booking quote:', error);
-        return res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Lỗi hệ thống',
-            },
-        });
+        logger.error({ event: 'booking.quote_failed', error, body: req.body });
+        return respondInternalError(res);
     }
 });
 
@@ -122,13 +109,7 @@ router.post('/hold', authMiddleware, async (req: AuthRequest, res: Response) => 
         // Validate request body
         const parsed = holdRequestSchema.safeParse(req.body);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    code: 'INVALID_INPUT',
-                    message: parsed.error.errors[0]?.message || 'Invalid request',
-                },
-            });
+            return respondValidationError(res, parsed.error.errors[0]?.message || 'Dữ liệu không hợp lệ');
         }
 
         const result = await createBookingHold({
@@ -150,19 +131,10 @@ router.post('/hold', authMiddleware, async (req: AuthRequest, res: Response) => 
             });
         }
 
-        return res.status(201).json({
-            success: true,
-            data: result.data,
-        });
+        return respondSuccess(res, result.data, 201);
     } catch (error) {
-        console.error('Error creating booking hold:', error);
-        return res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Lỗi hệ thống',
-            },
-        });
+        logger.error({ event: 'booking.hold_failed', error, userId: req.userId, body: req.body });
+        return respondInternalError(res);
     }
 });
 
@@ -183,34 +155,19 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
 
         const bookingId = req.params.id;
         if (!bookingId) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'INVALID_INPUT', message: 'Booking ID is required' },
-            });
+            return respondValidationError(res, 'Booking ID là bắt buộc');
         }
 
         const booking = await getBookingById(bookingId, userId);
 
         if (!booking) {
-            return res.status(404).json({
-                success: false,
-                error: { code: 'NOT_FOUND', message: 'Không tìm thấy booking' },
-            });
+            return respondError(res, 404, 'BOOKING_NOT_FOUND', 'Không tìm thấy booking');
         }
 
-        return res.json({
-            success: true,
-            data: booking,
-        });
+        return respondSuccess(res, booking);
     } catch (error) {
-        console.error('Error getting booking:', error);
-        return res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Lỗi hệ thống',
-            },
-        });
+        logger.error({ event: 'booking.detail_failed', error, userId: req.userId, bookingId: req.params.id });
+        return respondInternalError(res);
     }
 });
 
@@ -224,18 +181,12 @@ router.post('/:id/choose-payment', authMiddleware, async (req: AuthRequest, res:
     try {
         const userId = req.userId;
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'Bạn cần đăng nhập' },
-            });
+            return respondError(res, 401, 'UNAUTHORIZED', 'Bạn cần đăng nhập');
         }
 
         const parsed = paymentMethodSchema.safeParse(req.body);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: 'Phương thức thanh toán không hợp lệ' },
-            });
+            return respondValidationError(res, 'Phương thức thanh toán không hợp lệ');
         }
 
         const result = await choosePaymentMethod({
@@ -251,16 +202,16 @@ router.post('/:id/choose-payment', authMiddleware, async (req: AuthRequest, res:
             });
         }
 
-        return res.json({
-            success: true,
-            data: result.data,
-        });
+        return respondSuccess(res, result.data);
     } catch (error) {
-        console.error('Error choosing payment method:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
+        logger.error({
+            event: 'booking.choose_payment_failed',
+            error,
+            userId: req.userId,
+            bookingId: req.params.id,
+            body: req.body,
         });
+        return respondInternalError(res);
     }
 });
 
@@ -272,10 +223,7 @@ router.post('/:id/declare-transfer', authMiddleware, async (req: AuthRequest, re
     try {
         const userId = req.userId;
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'Bạn cần đăng nhập' },
-            });
+            return respondError(res, 401, 'UNAUTHORIZED', 'Bạn cần đăng nhập');
         }
 
         const result = await declareTransfer(req.params.id, userId);
@@ -287,16 +235,15 @@ router.post('/:id/declare-transfer', authMiddleware, async (req: AuthRequest, re
             });
         }
 
-        return res.json({
-            success: true,
-            data: result.data,
-        });
+        return respondSuccess(res, result.data);
     } catch (error) {
-        console.error('Error declaring transfer:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
+        logger.error({
+            event: 'booking.declare_transfer_failed',
+            error,
+            userId: req.userId,
+            bookingId: req.params.id,
         });
+        return respondInternalError(res);
     }
 });
 
@@ -304,14 +251,11 @@ router.post('/:id/transfer-session', authMiddleware, async (req: AuthRequest, re
     try {
         const userId = req.userId;
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'Bạn cần đăng nhập' },
-            });
+            return respondError(res, 401, 'UNAUTHORIZED', 'Bạn cần đăng nhập');
         }
 
         const data = await createTransferSession(req.params.id, userId);
-        return res.json({ success: true, data });
+        return respondSuccess(res, data);
     } catch (error: unknown) {
         const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
         const statusMap: Record<string, number> = {
@@ -320,10 +264,15 @@ router.post('/:id/transfer-session', authMiddleware, async (req: AuthRequest, re
             BOOKING_HOLD_EXPIRED: 400,
         };
 
-        return res.status(statusMap[code] || 500).json({
-            success: false,
-            error: { code, message: code },
+        logger.error({
+            event: 'booking.transfer_session_failed',
+            error,
+            userId: req.userId,
+            bookingId: req.params.id,
+            code,
         });
+
+        return respondError(res, statusMap[code] || 500, code, code);
     }
 });
 
@@ -336,31 +285,24 @@ router.get('/:id/extended', authMiddleware, async (req: AuthRequest, res: Respon
         const userId = req.userId;
         const userRole = req.userRole || 'USER';
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'Bạn cần đăng nhập' },
-            });
+            return respondError(res, 401, 'UNAUTHORIZED', 'Bạn cần đăng nhập');
         }
 
         const booking = await getBookingByIdExtended(req.params.id, userId, userRole);
 
         if (!booking) {
-            return res.status(404).json({
-                success: false,
-                error: { code: 'NOT_FOUND', message: 'Không tìm thấy booking' },
-            });
+            return respondError(res, 404, 'BOOKING_NOT_FOUND', 'Không tìm thấy booking');
         }
 
-        return res.json({
-            success: true,
-            data: booking,
-        });
+        return respondSuccess(res, booking);
     } catch (error) {
-        console.error('Error getting extended booking:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
+        logger.error({
+            event: 'booking.detail_extended_failed',
+            error,
+            userId: req.userId,
+            bookingId: req.params.id,
         });
+        return respondInternalError(res);
     }
 });
 

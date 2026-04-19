@@ -24,6 +24,7 @@ import {
     setVenueCoverImage,
     updateManagerCourt,
 } from '../services/managerPortal.service.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -163,7 +164,7 @@ router.get('/bookings', authMiddleware, requireManager, async (req: AuthRequest,
             data: bookings,
         });
     } catch (error) {
-        console.error('❌ Get manager bookings error:', error);
+        logger.error({ event: 'manager.bookings_failed', error, managerUserId: req.userId, query: req.query });
         return res.status(500).json({
             success: false,
             error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
@@ -191,7 +192,7 @@ router.post('/bookings/:id/confirm', authMiddleware, requireManager, async (req:
             data: result.data,
         });
     } catch (error) {
-        console.error('❌ Confirm booking error:', error);
+        logger.error({ event: 'manager.booking_confirm_failed', error, managerUserId: req.userId, bookingId: req.params.id });
         return res.status(500).json({
             success: false,
             error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
@@ -227,7 +228,13 @@ router.post('/bookings/:id/cancel', authMiddleware, requireManager, async (req: 
             data: result.data,
         });
     } catch (error) {
-        console.error('❌ Cancel booking error:', error);
+        logger.error({
+            event: 'manager.booking_cancel_failed',
+            error,
+            managerUserId: req.userId,
+            bookingId: req.params.id,
+            body: req.body,
+        });
         return res.status(500).json({
             success: false,
             error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
@@ -244,7 +251,7 @@ router.get('/context', authMiddleware, requireManager, async (req: AuthRequest, 
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager context error:', error);
+        logger.error({ event: 'manager.context_failed', error, managerUserId: req.userId });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -266,7 +273,7 @@ router.get('/overview', authMiddleware, requireManager, async (req: AuthRequest,
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager overview error:', error);
+        logger.error({ event: 'manager.overview_failed', error, managerUserId: req.userId, query: req.query });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -280,7 +287,7 @@ router.get('/courts', authMiddleware, requireManager, async (req: AuthRequest, r
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager courts error:', error);
+        logger.error({ event: 'manager.courts_failed', error, managerUserId: req.userId });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -302,7 +309,13 @@ router.patch('/courts/:id', authMiddleware, requireManager, async (req: AuthRequ
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Update manager court error:', error);
+        logger.error({
+            event: 'manager.court_update_failed',
+            error,
+            managerUserId: req.userId,
+            courtId: req.params.id,
+            body: req.body,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -324,7 +337,7 @@ router.post('/venue/images', authMiddleware, requireManager, async (req: AuthReq
         return res.status(201).json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Add venue image error:', error);
+        logger.error({ event: 'manager.venue_image_add_failed', error, managerUserId: req.userId, body: req.body });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -338,7 +351,12 @@ router.delete('/venue/images/:imageId', authMiddleware, requireManager, async (r
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Delete venue image error:', error);
+        logger.error({
+            event: 'manager.venue_image_delete_failed',
+            error,
+            managerUserId: req.userId,
+            imageId: req.params.imageId,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -352,7 +370,12 @@ router.post('/venue/images/:imageId/cover', authMiddleware, requireManager, asyn
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Set venue cover image error:', error);
+        logger.error({
+            event: 'manager.venue_cover_set_failed',
+            error,
+            managerUserId: req.userId,
+            imageId: req.params.imageId,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -366,7 +389,7 @@ router.get('/schedule', authMiddleware, requireManager, async (req: AuthRequest,
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager schedule error:', error);
+        logger.error({ event: 'manager.schedule_failed', error, managerUserId: req.userId });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -388,7 +411,7 @@ router.put('/schedule/weekly', authMiddleware, requireManager, async (req: AuthR
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Replace weekly schedule error:', error);
+        logger.error({ event: 'manager.schedule_replace_failed', error, managerUserId: req.userId, body: req.body });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -410,7 +433,7 @@ router.post('/holidays', authMiddleware, requireManager, async (req: AuthRequest
         return res.status(201).json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Add manager holiday error:', error);
+        logger.error({ event: 'manager.holiday_add_failed', error, managerUserId: req.userId, body: req.body });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -424,7 +447,12 @@ router.delete('/holidays/:holidayId', authMiddleware, requireManager, async (req
         return res.json({ success: true, data: { deleted: true } });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Remove manager holiday error:', error);
+        logger.error({
+            event: 'manager.holiday_remove_failed',
+            error,
+            managerUserId: req.userId,
+            holidayId: req.params.holidayId,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -446,7 +474,7 @@ router.post('/blackouts', authMiddleware, requireManager, async (req: AuthReques
         return res.status(201).json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Add manager blackout error:', error);
+        logger.error({ event: 'manager.blackout_add_failed', error, managerUserId: req.userId, body: req.body });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -460,7 +488,12 @@ router.delete('/blackouts/:blackoutId', authMiddleware, requireManager, async (r
         return res.json({ success: true, data: { deleted: true } });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Remove manager blackout error:', error);
+        logger.error({
+            event: 'manager.blackout_remove_failed',
+            error,
+            managerUserId: req.userId,
+            blackoutId: req.params.blackoutId,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -482,7 +515,7 @@ router.get('/analytics', authMiddleware, requireManager, async (req: AuthRequest
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager analytics error:', error);
+        logger.error({ event: 'manager.analytics_failed', error, managerUserId: req.userId, query: req.query });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -496,7 +529,7 @@ router.get('/subscription', authMiddleware, requireManager, async (req: AuthRequ
         return res.json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Get manager subscription error:', error);
+        logger.error({ event: 'manager.subscription_failed', error, managerUserId: req.userId });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });
@@ -518,7 +551,12 @@ router.post('/subscription/renewal-request', authMiddleware, requireManager, asy
         return res.status(201).json({ success: true, data });
     } catch (error) {
         const mapped = mapManagerPortalError(error);
-        console.error('❌ Create renewal request error:', error);
+        logger.error({
+            event: 'manager.renewal_request_create_failed',
+            error,
+            managerUserId: req.userId,
+            body: req.body,
+        });
         return res.status(mapped.status).json({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
 });

@@ -197,7 +197,8 @@ export interface ManagerAnalytics {
 }
 
 export interface ManagerSubscription {
-    venueName: string;
+    hasVenue: boolean;
+    venueName: string | null;
     displayName: string;
     subscription: {
         expiresAt: string | null;
@@ -215,7 +216,7 @@ export interface ManagerSubscription {
         qrCodeUrl: string;
         transferContent: string;
         note: string;
-    };
+    } | null;
     requests: Array<{
         id: string;
         months: number;

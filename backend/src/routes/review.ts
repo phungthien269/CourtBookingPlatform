@@ -10,6 +10,8 @@ import {
     getVenueReviews,
     getReviewEligibility,
 } from '../services/review.service';
+import { respondInternalError, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -36,10 +38,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
         const parsed = createReviewSchema.safeParse(req.body);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         const result = await createReview({
@@ -58,11 +57,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
         return res.status(201).json(result);
     } catch (error) {
-        console.error('Create review error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'review.create_failed', error, userId: req.userId, body: req.body });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -76,10 +72,7 @@ router.get('/venues/:id/reviews', async (req: Request, res: Response) => {
         const parsed = getVenueReviewsSchema.safeParse(req.query);
 
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         const result = await getVenueReviews(venueId, parsed.data.page, parsed.data.limit);
@@ -90,11 +83,8 @@ router.get('/venues/:id/reviews', async (req: Request, res: Response) => {
 
         return res.json(result);
     } catch (error) {
-        console.error('Get venue reviews error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'review.venue_list_failed', error, venueId: req.params.id, query: req.query });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -107,20 +97,14 @@ router.get('/me/review-eligibility', authMiddleware, async (req: AuthRequest, re
         const venueId = req.query.venueId as string;
 
         if (!venueId) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'MISSING_VENUE_ID', message: 'venueId is required' },
-            });
+            return respondValidationError(res, 'venueId là bắt buộc');
         }
 
         const result = await getReviewEligibility(req.userId!, venueId);
         return res.json(result);
     } catch (error) {
-        console.error('Get review eligibility error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'review.eligibility_failed', error, userId: req.userId, venueId: req.query.venueId });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 

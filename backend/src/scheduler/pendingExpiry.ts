@@ -4,6 +4,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { logger } from '../lib/logger.js';
 import { broadcast } from '../lib/websocket.js';
 
 const EXPIRY_INTERVAL_MS = 15_000; // 15 seconds
@@ -36,7 +37,10 @@ async function processExpiredBookings(): Promise<void> {
             return;
         }
 
-        console.log(`⏰ Found ${expiredBookings.length} expired pending booking(s)`);
+        logger.info({
+            event: 'booking.pending_expiry_batch_found',
+            count: expiredBookings.length,
+        });
 
         // Update each to EXPIRED and broadcast
         for (const booking of expiredBookings) {
@@ -60,10 +64,17 @@ async function processExpiredBookings(): Promise<void> {
                 },
             });
 
-            console.log(`⏰ Expired booking ${booking.id}`);
+            logger.info({
+                event: 'booking.pending_expired',
+                bookingId: booking.id,
+                courtId: booking.courtId,
+            });
         }
     } catch (error) {
-        console.error('Error processing expired bookings:', error);
+        logger.error({
+            event: 'booking.pending_expiry_batch_failed',
+            error,
+        });
     }
 }
 
@@ -71,7 +82,10 @@ async function processExpiredBookings(): Promise<void> {
  * Start the expiry scheduler
  */
 export function startExpiryScheduler(): NodeJS.Timeout {
-    console.log('⏰ Starting pending expiry scheduler (15s interval)');
+    logger.info({
+        event: 'booking.pending_expiry_scheduler_started',
+        intervalMs: EXPIRY_INTERVAL_MS,
+    });
 
     // Run immediately once
     processExpiredBookings();
@@ -85,5 +99,7 @@ export function startExpiryScheduler(): NodeJS.Timeout {
  */
 export function stopExpiryScheduler(intervalId: NodeJS.Timeout): void {
     clearInterval(intervalId);
-    console.log('⏰ Stopped pending expiry scheduler');
+    logger.info({
+        event: 'booking.pending_expiry_scheduler_stopped',
+    });
 }

@@ -6,6 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { getCourtAvailability } from '../services/court.service.js';
+import { respondError, respondInternalError, respondSuccess, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -28,13 +30,7 @@ router.get('/:courtId/availability', async (req: Request, res: Response) => {
         // Validate query params
         const parsed = availabilityQuerySchema.safeParse(req.query);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    code: 'INVALID_INPUT',
-                    message: parsed.error.errors[0]?.message || 'Invalid date format',
-                },
-            });
+            return respondValidationError(res, parsed.error.errors[0]?.message || 'Ngày không hợp lệ');
         }
 
         const { date } = parsed.data;
@@ -42,28 +38,18 @@ router.get('/:courtId/availability', async (req: Request, res: Response) => {
         const availability = await getCourtAvailability(courtId, date);
 
         if (!availability) {
-            return res.status(404).json({
-                success: false,
-                error: {
-                    code: 'COURT_NOT_FOUND',
-                    message: 'Không tìm thấy sân',
-                },
-            });
+            return respondError(res, 404, 'COURT_NOT_FOUND', 'Không tìm thấy sân');
         }
 
-        return res.json({
-            success: true,
-            data: availability,
-        });
+        return respondSuccess(res, availability);
     } catch (error) {
-        console.error('Error getting court availability:', error);
-        return res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Lỗi hệ thống',
-            },
+        logger.error({
+            event: 'court.availability_failed',
+            error,
+            courtId: req.params.courtId,
+            query: req.query,
         });
+        return respondInternalError(res);
     }
 });
 

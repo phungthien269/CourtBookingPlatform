@@ -11,6 +11,8 @@ import {
     sendMessage,
     getManagerInbox,
 } from '../services/chat.service';
+import { respondInternalError, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -39,10 +41,7 @@ router.post('/threads', authMiddleware, async (req: AuthRequest, res: Response) 
     try {
         const parsed = createThreadSchema.safeParse(req.body);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         const result = await createOrGetThread({
@@ -59,11 +58,8 @@ router.post('/threads', authMiddleware, async (req: AuthRequest, res: Response) 
 
         return res.status(result.data?.isNew ? 201 : 200).json(result);
     } catch (error) {
-        console.error('Create thread error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'chat.thread_create_failed', error, userId: req.userId, body: req.body });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -77,10 +73,7 @@ router.get('/threads/:threadId/messages', authMiddleware, async (req: AuthReques
         const parsed = getMessagesSchema.safeParse(req.query);
 
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         // Determine role based on user
@@ -103,11 +96,14 @@ router.get('/threads/:threadId/messages', authMiddleware, async (req: AuthReques
 
         return res.json(result);
     } catch (error) {
-        console.error('Get messages error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
+        logger.error({
+            event: 'chat.messages_failed',
+            error,
+            userId: req.userId,
+            threadId: req.params.threadId,
+            query: req.query,
         });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -121,10 +117,7 @@ router.post('/threads/:threadId/messages', authMiddleware, async (req: AuthReque
         const parsed = sendMessageSchema.safeParse(req.body);
 
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: parsed.error.message },
-            });
+            return respondValidationError(res, parsed.error.message);
         }
 
         // Determine sender role
@@ -146,11 +139,14 @@ router.post('/threads/:threadId/messages', authMiddleware, async (req: AuthReque
 
         return res.status(201).json(result);
     } catch (error) {
-        console.error('Send message error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
+        logger.error({
+            event: 'chat.message_send_failed',
+            error,
+            userId: req.userId,
+            threadId: req.params.threadId,
+            body: req.body,
         });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 
@@ -163,11 +159,8 @@ router.get('/manager/inbox', authMiddleware, requireManager, async (req: AuthReq
         const result = await getManagerInbox(req.userId!);
         return res.json(result);
     } catch (error) {
-        console.error('Get manager inbox error:', error);
-        return res.status(500).json({
-            success: false,
-            error: { code: 'SERVER_ERROR', message: 'Lỗi server' },
-        });
+        logger.error({ event: 'chat.manager_inbox_failed', error, userId: req.userId });
+        return respondInternalError(res, 'Lỗi server');
     }
 });
 

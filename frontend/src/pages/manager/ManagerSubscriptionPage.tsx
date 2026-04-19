@@ -106,10 +106,21 @@ export default function ManagerSubscriptionPage() {
                 </div>
             </section>
 
+            {!data.hasVenue && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+                    <Badge variant="warning">Chưa có venue</Badge>
+                    <h2 className="mt-3 text-xl font-semibold text-slate-900">Chưa thể gửi yêu cầu gia hạn</h2>
+                    <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                        Tài khoản manager này chưa được gán venue nên hệ thống chưa thể tính phí theo số sân active
+                        hoặc tạo nội dung chuyển khoản. Khi admin gán venue, trang này sẽ tự hiển thị thông tin gia hạn đầy đủ.
+                    </p>
+                </section>
+            )}
+
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-sm text-slate-500">Venue</p>
-                    <p className="mt-3 text-lg font-semibold text-slate-900">{data.venueName}</p>
+                    <p className="mt-3 text-lg font-semibold text-slate-900">{data.venueName || 'Chưa được gán'}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-sm text-slate-500">Sân tính phí</p>
@@ -169,11 +180,13 @@ export default function ManagerSubscriptionPage() {
                         </div>
 
                         <div className="mt-5 flex items-center gap-3">
-                            <Button onClick={handleRenewalRequest} loading={submitting}>
+                            <Button onClick={handleRenewalRequest} loading={submitting} disabled={!data.hasVenue}>
                                 Gửi yêu cầu gia hạn
                             </Button>
                             <span className="text-sm text-slate-500">
-                                Admin sẽ xác nhận thủ công sau khi kiểm tra thanh toán.
+                                {data.hasVenue
+                                    ? 'Admin sẽ xác nhận thủ công sau khi kiểm tra thanh toán.'
+                                    : 'Cần có venue trước khi gửi yêu cầu gia hạn.'}
                             </span>
                         </div>
                     </div>
@@ -226,34 +239,42 @@ export default function ManagerSubscriptionPage() {
                         <h2 className="text-lg font-semibold text-slate-900">Thông tin chuyển khoản</h2>
                     </div>
 
-                    <img
-                        src={data.paymentInstruction.qrCodeUrl}
-                        alt="QR renewal"
-                        className="mt-5 w-full rounded-2xl border border-slate-200"
-                    />
+                    {data.paymentInstruction ? (
+                        <>
+                            <img
+                                src={data.paymentInstruction.qrCodeUrl}
+                                alt="QR renewal"
+                                className="mt-5 w-full rounded-2xl border border-slate-200"
+                            />
 
-                    <div className="mt-5 space-y-3 text-sm text-slate-600">
-                        <div>
-                            <p className="text-slate-500">Ngân hàng</p>
-                            <p className="font-medium text-slate-900">{data.paymentInstruction.bankName}</p>
-                        </div>
-                        <div>
-                            <p className="text-slate-500">Số tài khoản</p>
-                            <p className="font-medium text-slate-900">{data.paymentInstruction.accountNumber}</p>
-                        </div>
-                        <div>
-                            <p className="text-slate-500">Chủ tài khoản</p>
-                            <p className="font-medium text-slate-900">{data.paymentInstruction.accountName}</p>
-                        </div>
-                        <div>
-                            <p className="text-slate-500">Nội dung chuyển khoản</p>
-                            <p className="font-medium text-slate-900">{data.paymentInstruction.transferContent}</p>
-                        </div>
-                    </div>
+                            <div className="mt-5 space-y-3 text-sm text-slate-600">
+                                <div>
+                                    <p className="text-slate-500">Ngân hàng</p>
+                                    <p className="font-medium text-slate-900">{data.paymentInstruction.bankName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Số tài khoản</p>
+                                    <p className="font-medium text-slate-900">{data.paymentInstruction.accountNumber}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Chủ tài khoản</p>
+                                    <p className="font-medium text-slate-900">{data.paymentInstruction.accountName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Nội dung chuyển khoản</p>
+                                    <p className="font-medium text-slate-900">{data.paymentInstruction.transferContent}</p>
+                                </div>
+                            </div>
 
-                    <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                        {data.paymentInstruction.note}
-                    </div>
+                            <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                                {data.paymentInstruction.note}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                            Chưa có thông tin chuyển khoản vì manager này chưa được gán venue.
+                        </div>
+                    )}
                 </aside>
             </section>
         </div>

@@ -37,3 +37,10 @@ export function respondError(res: Response, statusCode: number, code: string, me
     });
 }
 
+export function respondValidationError(res: Response, message: string, details?: unknown) {
+    return respondError(res, 400, 'VALIDATION_ERROR', message, details);
+}
+
+export function respondInternalError(res: Response, message = 'Lỗi hệ thống', details?: unknown) {
+    return respondError(res, 500, 'INTERNAL_ERROR', message, details);
+}

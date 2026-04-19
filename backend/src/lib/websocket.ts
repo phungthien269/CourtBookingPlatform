@@ -6,6 +6,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import jwt from 'jsonwebtoken';
+import { appConfig } from './config.js';
+import { logger } from './logger.js';
 
 let wss: WebSocketServer | null = null;
 
@@ -31,7 +33,11 @@ export function initWebSocket(server: Server): WebSocketServer {
     wss = new WebSocketServer({ server, path: '/ws' });
 
     wss.on('connection', (ws, req) => {
-        console.log('🔌 WebSocket client connected');
+        logger.info({
+            event: 'ws.client_connected',
+            ip: req.socket.remoteAddress || null,
+            userAgent: req.headers['user-agent'] || null,
+        });
 
         let authenticatedUserId: string | null = null;
 
@@ -41,8 +47,7 @@ export function initWebSocket(server: Server): WebSocketServer {
 
         if (token) {
             try {
-                const secret = process.env.JWT_SECRET || 'courtbooking-jwt-secret';
-                const decoded = jwt.verify(token, secret) as JwtPayload;
+                const decoded = jwt.verify(token, appConfig.jwtSecret) as JwtPayload;
                 authenticatedUserId = decoded.userId;
 
                 // Register socket for this user
@@ -51,10 +56,15 @@ export function initWebSocket(server: Server): WebSocketServer {
                 }
                 userSockets.get(authenticatedUserId)!.add(ws);
 
-                console.log(`🔐 WebSocket authenticated for user: ${authenticatedUserId}`);
+                logger.info({
+                    event: 'ws.client_authenticated',
+                    userId: authenticatedUserId,
+                });
             } catch (err) {
-                // Invalid token - keep as unauthenticated (legacy mode)
-                console.log('🔓 WebSocket token invalid, using broadcast-only mode');
+                logger.warn({
+                    event: 'ws.invalid_token',
+                    error: err,
+                });
             }
         }
 
@@ -69,7 +79,10 @@ export function initWebSocket(server: Server): WebSocketServer {
         }));
 
         ws.on('close', () => {
-            console.log('🔌 WebSocket client disconnected');
+            logger.info({
+                event: 'ws.client_disconnected',
+                userId: authenticatedUserId,
+            });
 
             // Phase 5: Remove from userSockets if authenticated
             if (authenticatedUserId) {
@@ -84,11 +97,18 @@ export function initWebSocket(server: Server): WebSocketServer {
         });
 
         ws.on('error', (error) => {
-            console.error('WebSocket error:', error);
+            logger.error({
+                event: 'ws.client_error',
+                userId: authenticatedUserId,
+                error,
+            });
         });
     });
 
-    console.log('🔌 WebSocket server initialized at /ws');
+    logger.info({
+        event: 'ws.server_initialized',
+        path: '/ws',
+    });
     return wss;
 }
 
@@ -97,7 +117,11 @@ export function initWebSocket(server: Server): WebSocketServer {
  */
 export function broadcast(event: Omit<WsEvent, 'timestamp'>): void {
     if (!wss) {
-        console.warn('WebSocket server not initialized');
+        logger.warn({
+            event: 'ws.broadcast_skipped',
+            reason: 'server_not_initialized',
+            type: event.type,
+        });
         return;
     }
 
@@ -112,7 +136,12 @@ export function broadcast(event: Omit<WsEvent, 'timestamp'>): void {
         }
     });
 
-    console.log(`📡 Broadcast: ${event.type}`, event.payload);
+    logger.debug({
+        event: 'ws.broadcast',
+        type: event.type,
+        payload: event.payload,
+        clientCount: wss.clients.size,
+    });
 }
 
 /**
@@ -122,7 +151,12 @@ export function sendToUser(userId: string, event: Omit<WsEvent, 'timestamp'>): v
     const sockets = userSockets.get(userId);
 
     if (!sockets || sockets.size === 0) {
-        console.log(`📡 sendToUser: No active sockets for user ${userId}`);
+        logger.debug({
+            event: 'ws.send_to_user_skipped',
+            userId,
+            reason: 'no_active_sockets',
+            type: event.type,
+        });
         return;
     }
 
@@ -137,7 +171,13 @@ export function sendToUser(userId: string, event: Omit<WsEvent, 'timestamp'>): v
         }
     });
 
-    console.log(`📡 sendToUser (${userId}): ${event.type}`, event.payload);
+    logger.debug({
+        event: 'ws.send_to_user',
+        userId,
+        type: event.type,
+        payload: event.payload,
+        socketCount: sockets.size,
+    });
 }
 
 /**

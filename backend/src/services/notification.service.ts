@@ -6,6 +6,7 @@
 import prisma from '../lib/prisma';
 import { NotificationType, NotificationTargetRole, Prisma } from '@prisma/client';
 import { sendToUser } from '../lib/websocket';
+import { logger } from '../lib/logger.js';
 
 // ==================== Types ====================
 
@@ -86,9 +87,25 @@ export async function createAndDispatch(params: CreateNotificationParams): Promi
             });
         }
 
-        console.log(`📢 Notification created: ${type} -> ${role}:${targetUserId}`);
+        logger.info({
+            event: 'notification.created',
+            type,
+            role,
+            targetUserId: targetUserId || null,
+            venueId: venueId || null,
+            bookingId: bookingId || null,
+        });
     } catch (error) {
-        console.error('Failed to create notification:', error);
+        logger.error({
+            event: 'notification.create_failed',
+            error,
+            type,
+            role,
+            userId: userId || null,
+            managerId: managerId || null,
+            venueId: venueId || null,
+            bookingId: bookingId || null,
+        });
         // Don't throw - notifications should not block main flow
     }
 }
@@ -152,7 +169,15 @@ export async function listNotifications(params: ListNotificationsParams): Promis
             },
         };
     } catch (error) {
-        console.error('List notifications error:', error);
+        logger.error({
+            event: 'notification.list_service_failed',
+            error,
+            role,
+            userId: userId || null,
+            managerId: managerId || null,
+            cursor: cursor || null,
+            limit,
+        });
         return { success: false, error: { code: 'SERVER_ERROR', message: 'Lỗi server' } };
     }
 }
@@ -183,7 +208,13 @@ export async function getUnreadCount(params: {
 
         return { success: true, data: { count } };
     } catch (error) {
-        console.error('Get unread count error:', error);
+        logger.error({
+            event: 'notification.unread_count_service_failed',
+            error,
+            role,
+            userId: userId || null,
+            managerId: managerId || null,
+        });
         return { success: false, error: { code: 'SERVER_ERROR', message: 'Lỗi server' } };
     }
 }
@@ -224,7 +255,13 @@ export async function markAsRead(
 
         return { success: true };
     } catch (error) {
-        console.error('Mark as read error:', error);
+        logger.error({
+            event: 'notification.mark_as_read_service_failed',
+            error,
+            notificationId,
+            userId,
+            role,
+        });
         return { success: false, error: { code: 'SERVER_ERROR', message: 'Lỗi server' } };
     }
 }
@@ -255,7 +292,12 @@ export async function markAllAsRead(
 
         return { success: true, data: { count: result.count } };
     } catch (error) {
-        console.error('Mark all as read error:', error);
+        logger.error({
+            event: 'notification.mark_all_as_read_service_failed',
+            error,
+            userId,
+            role,
+        });
         return { success: false, error: { code: 'SERVER_ERROR', message: 'Lỗi server' } };
     }
 }

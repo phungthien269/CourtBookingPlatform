@@ -11,6 +11,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import * as VenueService from '../services/venue.service.js';
 import { getCourtsForVenue } from '../services/court.service.js';
+import { respondError, respondInternalError, respondSuccess, respondValidationError } from '../lib/api.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -29,11 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
     try {
         const parsed = venueQuerySchema.safeParse(req.query);
         if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid query parameters',
-                details: parsed.error.issues,
-            });
+            return respondValidationError(res, 'Query parameters không hợp lệ', parsed.error.issues);
         }
 
         const { sportTypes, district, q } = parsed.data;
@@ -44,17 +42,13 @@ router.get('/', async (req: Request, res: Response) => {
             q,
         });
 
-        return res.json({
-            success: true,
-            data: venues,
+        return respondSuccess(res, {
+            items: venues,
             count: venues.length,
         });
     } catch (error) {
-        console.error('Error fetching venues:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-        });
+        logger.error({ event: 'venue.list_failed', error, query: req.query });
+        return respondInternalError(res);
     }
 });
 
@@ -65,16 +59,10 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/districts', async (_req: Request, res: Response) => {
     try {
         const districts = await VenueService.getDistricts();
-        return res.json({
-            success: true,
-            data: districts,
-        });
+        return respondSuccess(res, districts);
     } catch (error) {
-        console.error('Error fetching districts:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-        });
+        logger.error({ event: 'venue.districts_failed', error });
+        return respondInternalError(res);
     }
 });
 
@@ -85,16 +73,10 @@ router.get('/districts', async (_req: Request, res: Response) => {
 router.get('/sport-types', async (_req: Request, res: Response) => {
     try {
         const sportTypes = await VenueService.getSportTypes();
-        return res.json({
-            success: true,
-            data: sportTypes,
-        });
+        return respondSuccess(res, sportTypes);
     } catch (error) {
-        console.error('Error fetching sport types:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-        });
+        logger.error({ event: 'venue.sport_types_failed', error });
+        return respondInternalError(res);
     }
 });
 
@@ -108,16 +90,10 @@ router.get('/:id/courts', async (req: Request, res: Response) => {
 
         const courts = await getCourtsForVenue(id);
 
-        return res.json({
-            success: true,
-            data: courts,
-        });
+        return respondSuccess(res, courts);
     } catch (error) {
-        console.error('Error fetching courts:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-        });
+        logger.error({ event: 'venue.courts_failed', error, venueId: req.params.id });
+        return respondInternalError(res);
     }
 });
 
@@ -130,31 +106,19 @@ router.get('/:id', async (req: Request, res: Response) => {
         const { id } = req.params;
 
         if (!id || typeof id !== 'string') {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid venue ID',
-            });
+            return respondError(res, 400, 'INVALID_VENUE_ID', 'Venue ID không hợp lệ');
         }
 
         const venue = await VenueService.getVenueById(id);
 
         if (!venue) {
-            return res.status(404).json({
-                success: false,
-                error: 'Venue not found',
-            });
+            return respondError(res, 404, 'VENUE_NOT_FOUND', 'Không tìm thấy venue');
         }
 
-        return res.json({
-            success: true,
-            data: venue,
-        });
+        return respondSuccess(res, venue);
     } catch (error) {
-        console.error('Error fetching venue:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-        });
+        logger.error({ event: 'venue.detail_failed', error, venueId: req.params.id });
+        return respondInternalError(res);
     }
 });
 

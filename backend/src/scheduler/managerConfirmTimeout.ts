@@ -4,6 +4,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { logger } from '../lib/logger.js';
 import { broadcast } from '../lib/websocket.js';
 
 const CONFIRM_TIMEOUT_HOURS = 1;
@@ -13,13 +14,20 @@ const SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
  * Start the manager confirmation timeout scheduler
  */
 export function startManagerConfirmTimeoutScheduler(): void {
-    console.log('⏰ [Phase 4] Manager confirm timeout scheduler started (1h timeout, 1min interval)');
+    logger.info({
+        event: 'booking.manager_confirm_timeout_scheduler_started',
+        timeoutHours: CONFIRM_TIMEOUT_HOURS,
+        intervalMs: SCHEDULER_INTERVAL_MS,
+    });
 
     setInterval(async () => {
         try {
             await processExpiredConfirmations();
         } catch (err) {
-            console.error('❌ [Phase 4] Timeout scheduler error:', err);
+            logger.error({
+                event: 'booking.manager_confirm_timeout_scheduler_failed',
+                error: err,
+            });
         }
     }, SCHEDULER_INTERVAL_MS);
 }
@@ -73,10 +81,18 @@ async function processExpiredConfirmations(): Promise<void> {
             },
         });
 
-        console.log(`⏰ [Phase 4] Auto-cancelled booking ${booking.id} - timeout exceeded`);
+        logger.info({
+            event: 'booking.manager_confirm_timeout_cancelled',
+            bookingId: booking.id,
+            userId: booking.userId,
+            venueId: booking.court.venueId,
+        });
     }
 
     if (expiredBookings.length > 0) {
-        console.log(`⏰ [Phase 4] Processed ${expiredBookings.length} expired booking(s)`);
+        logger.info({
+            event: 'booking.manager_confirm_timeout_batch_processed',
+            count: expiredBookings.length,
+        });
     }
 }
