@@ -111,6 +111,8 @@ function mapManagerPortalError(error: unknown): { status: number; code: string; 
     const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
 
     switch (message) {
+        case 'MANAGER_NOT_FOUND':
+            return { status: 404, code: 'MANAGER_NOT_FOUND', message: 'Không tìm thấy tài khoản manager' };
         case 'MANAGER_WORKSPACE_NOT_FOUND':
             return { status: 404, code: 'MANAGER_WORKSPACE_NOT_FOUND', message: 'Không tìm thấy venue của manager' };
         case 'COURT_NOT_FOUND':

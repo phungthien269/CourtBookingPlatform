@@ -117,7 +117,7 @@ export function Login() {
             </form>
 
             <div className="mt-6 text-center">
-                <Link to="#" className="text-sm text-primary hover:underline">
+                <Link to="/auth/forgot-password" className="text-sm text-primary hover:underline">
                     Quên mật khẩu?
                 </Link>
             </div>

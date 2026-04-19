@@ -17,6 +17,12 @@ const sidebarItems = [
     { path: '/manager/notifications', label: 'Thông báo', icon: '🔔' },
 ];
 
+const onboardingSidebarPaths = new Set([
+    '/manager',
+    '/manager/subscription',
+    '/manager/notifications',
+]);
+
 function getSubscriptionVariant(status: ManagerContext['subscription']['status']) {
     switch (status) {
         case 'ACTIVE':
@@ -34,19 +40,29 @@ export function ManagerLayout() {
     const { user, token, logout } = useAuth();
     const location = useLocation();
     const [context, setContext] = useState<ManagerContext | null>(null);
+    const [isContextLoading, setIsContextLoading] = useState(true);
 
     useEffect(() => {
         async function loadContext() {
-            if (!token) return;
+            if (!token) {
+                setIsContextLoading(false);
+                return;
+            }
 
+            setIsContextLoading(true);
             const result = await getManagerContext(token);
             if (result.success) {
                 setContext(result.data);
             }
+            setIsContextLoading(false);
         }
 
         loadContext();
     }, [token]);
+
+    const visibleSidebarItems = context?.hasVenue === false
+        ? sidebarItems.filter((item) => onboardingSidebarPaths.has(item.path))
+        : sidebarItems;
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
@@ -65,10 +81,10 @@ export function ManagerLayout() {
 
                 <div className="border-b border-slate-200 px-6 py-5">
                     <p className="text-sm font-medium text-slate-900">
-                        {context?.venue.name || context?.manager.displayName || 'Đang tải venue...'}
+                        {context?.venue?.name || context?.manager.displayName || 'Đang tải workspace...'}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                        {context?.venue.address || user?.email}
+                        {context?.venue?.address || user?.email}
                     </p>
                     {context && (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -78,15 +94,19 @@ export function ManagerLayout() {
                                 {context.subscription.status === 'EXPIRED' && 'Đã hết hạn'}
                                 {context.subscription.status === 'UNSET' && 'Chưa có gói'}
                             </Badge>
-                            <Badge variant="info">
-                                {context.venue.activeCourtCount}/{context.venue.totalCourtCount} sân active
-                            </Badge>
+                            {context.hasVenue ? (
+                                <Badge variant="info">
+                                    {context.venue?.activeCourtCount ?? 0}/{context.venue?.totalCourtCount ?? 0} sân active
+                                </Badge>
+                            ) : (
+                                <Badge variant="warning">Chưa có venue</Badge>
+                            )}
                         </div>
                     )}
                 </div>
 
                 <nav className="space-y-1 p-4">
-                    {sidebarItems.map((item) => {
+                    {visibleSidebarItems.map((item) => {
                         const isActive =
                             item.path === '/manager'
                                 ? location.pathname === item.path
@@ -117,7 +137,9 @@ export function ManagerLayout() {
                             {context?.manager.displayName || user?.name || user?.email}
                         </p>
                         <p className="text-xs text-slate-500">
-                            {context?.subscription.daysRemaining !== null && context?.subscription.daysRemaining !== undefined
+                            {context?.hasVenue === false
+                                ? 'Chờ admin tạo hoặc gán venue để bắt đầu vận hành'
+                                : context?.subscription.daysRemaining !== null && context?.subscription.daysRemaining !== undefined
                                 ? `Còn ${context.subscription.daysRemaining} ngày gia hạn`
                                 : 'Đang tải thông tin subscription'}
                         </p>
@@ -136,7 +158,7 @@ export function ManagerLayout() {
                 </header>
 
                 <main className="p-6">
-                    <Outlet />
+                    <Outlet context={{ context, isContextLoading }} />
                 </main>
             </div>
 
@@ -144,3 +166,8 @@ export function ManagerLayout() {
         </div>
     );
 }
+
+export type ManagerLayoutOutletContext = {
+    context: ManagerContext | null;
+    isContextLoading: boolean;
+};

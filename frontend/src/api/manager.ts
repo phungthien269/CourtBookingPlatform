@@ -29,6 +29,7 @@ export interface ManagerContext {
         contactEmail: string;
         contactName: string | null;
     };
+    hasVenue: boolean;
     venue: {
         id: string;
         name: string;
@@ -38,7 +39,7 @@ export interface ManagerContext {
         status: string;
         activeCourtCount: number;
         totalCourtCount: number;
-    };
+    } | null;
     subscription: {
         expiresAt: string | null;
         daysRemaining: number | null;

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { ToastContainer } from './components/ui/Toast';
+import { RequireManagerVenue } from './components/manager/RequireManagerVenue';
 
 // Layouts
 import { PublicLayout, AuthLayout, UserLayout, ManagerLayout, AdminLayout } from './components/layouts';
@@ -177,14 +178,16 @@ export default function App() {
                     }
                 >
                     <Route path="/manager" element={<ManagerDashboard />} />
-                    <Route path="/manager/bookings" element={<ManagerBookingsPage />} />
-                    <Route path="/manager/courts" element={<ManagerCourtsPage />} />
-                    <Route path="/manager/schedule" element={<ManagerSchedulePage />} />
-                    <Route path="/manager/analytics" element={<ManagerAnalyticsPage />} />
                     <Route path="/manager/subscription" element={<ManagerSubscriptionPage />} />
-                    <Route path="/manager/chat" element={<ManagerChatInbox />} />
-                    <Route path="/manager/chat/:threadId" element={<ManagerChatThread />} />
                     <Route path="/manager/notifications" element={<Notifications />} />
+                    <Route element={<RequireManagerVenue />}>
+                        <Route path="/manager/bookings" element={<ManagerBookingsPage />} />
+                        <Route path="/manager/courts" element={<ManagerCourtsPage />} />
+                        <Route path="/manager/schedule" element={<ManagerSchedulePage />} />
+                        <Route path="/manager/analytics" element={<ManagerAnalyticsPage />} />
+                        <Route path="/manager/chat" element={<ManagerChatInbox />} />
+                        <Route path="/manager/chat/:threadId" element={<ManagerChatThread />} />
+                    </Route>
                 </Route>
 
                 {/* Admin routes */}

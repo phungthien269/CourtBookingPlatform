@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AlertCircle, CalendarDays, ChevronLeft, ChevronRight, Clock3, Wallet } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getManagerOverview, ManagerOverview } from '../../api/manager';
+import { getManagerContext, getManagerOverview, ManagerOverview } from '../../api/manager';
 import { getTodayDate, formatPrice } from '../../api/booking';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -48,10 +49,15 @@ function getBlockClass(status: string) {
 
 export function ManagerDashboard() {
     const { token } = useAuth();
+    const location = useLocation();
     const [selectedDate, setSelectedDate] = useState(getTodayDate());
     const [overview, setOverview] = useState<ManagerOverview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [needsVenueOnboarding, setNeedsVenueOnboarding] = useState(false);
+    const [managerDisplayName, setManagerDisplayName] = useState<string | null>(null);
+    const blockedReason = (location.state as { blockedReason?: string; from?: string } | null)?.blockedReason;
+    const blockedFrom = (location.state as { blockedReason?: string; from?: string } | null)?.from;
 
     useEffect(() => {
         async function loadOverview() {
@@ -59,15 +65,29 @@ export function ManagerDashboard() {
 
             setLoading(true);
             setError(null);
+            setNeedsVenueOnboarding(false);
 
             const result = await getManagerOverview(token, selectedDate);
 
             if (!result.success) {
+                if (result.error.code === 'MANAGER_WORKSPACE_NOT_FOUND') {
+                    const contextResult = await getManagerContext(token);
+
+                    if (contextResult.success) {
+                        setManagerDisplayName(contextResult.data.manager.displayName);
+                        setNeedsVenueOnboarding(!contextResult.data.hasVenue);
+                        setOverview(null);
+                        setLoading(false);
+                        return;
+                    }
+                }
+
                 setError(result.error.message);
                 setLoading(false);
                 return;
             }
 
+            setManagerDisplayName(null);
             setOverview(result.data);
             setLoading(false);
         }
@@ -77,6 +97,7 @@ export function ManagerDashboard() {
 
     const timelineStartHour = overview?.hours[0] ?? 6;
     const totalTimelineHours = overview?.hours.length || 1;
+    const venue = overview?.venue;
 
     return (
         <div className="space-y-6">
@@ -117,7 +138,7 @@ export function ManagerDashboard() {
                     </div>
                 </div>
 
-                {overview && (
+                {overview && venue && (
                     <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                         <span className="inline-flex items-center gap-2">
                             <CalendarDays className="h-4 w-4" />
@@ -125,7 +146,7 @@ export function ManagerDashboard() {
                         </span>
                         <span className="inline-flex items-center gap-2">
                             <Clock3 className="h-4 w-4" />
-                            {overview.venue.name} • {overview.venue.district}
+                            {venue.name} • {venue.district}
                         </span>
                         {overview.subscription.daysRemaining !== null && (
                             <span className="inline-flex items-center gap-2">
@@ -149,7 +170,56 @@ export function ManagerDashboard() {
                 </div>
             )}
 
-            {!loading && !error && overview && (
+            {!loading && !error && needsVenueOnboarding && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                            <Badge variant="warning">Onboarding chưa hoàn tất</Badge>
+                            <div>
+                                <h2 className="text-xl font-semibold text-slate-900">
+                                    {managerDisplayName || 'Manager'} chưa được gán venue
+                                </h2>
+                                <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                                    Tài khoản manager đã đăng nhập thành công nhưng chưa có venue để vận hành.
+                                    Khi admin tạo hoặc gán venue, dashboard, sân, lịch hoạt động và booking sẽ tự hoạt động lại.
+                                </p>
+                                {blockedReason === 'MANAGER_VENUE_REQUIRED' && blockedFrom && (
+                                    <p className="mt-2 text-sm font-medium text-amber-800">
+                                        Trang <span className="font-semibold">{blockedFrom}</span> đang bị khóa cho tới khi venue được gán.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <Button variant="secondary" onClick={() => window.location.reload()}>
+                            Tải lại
+                        </Button>
+                    </div>
+
+                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                        <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                            <p className="text-sm font-semibold text-slate-900">1. Yêu cầu admin tạo venue</p>
+                            <p className="mt-2 text-sm text-slate-600">
+                                Admin cần tạo venue mới hoặc gán venue hiện có cho tài khoản manager này.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                            <p className="text-sm font-semibold text-slate-900">2. Hoàn thiện cấu hình vận hành</p>
+                            <p className="mt-2 text-sm text-slate-600">
+                                Sau khi có venue, cấu hình sân, lịch mở cửa, ảnh venue và thông tin ngân hàng nhận thanh toán.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                            <p className="text-sm font-semibold text-slate-900">3. Kiểm tra gói subscription</p>
+                            <p className="mt-2 text-sm text-slate-600">
+                                Vào mục Gia hạn để kiểm tra phí theo số sân active và trạng thái gói hiện tại.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {!loading && !error && overview && venue && (
                 <>
                     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -254,14 +324,14 @@ export function ManagerDashboard() {
                                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                                     <div className="flex items-center justify-between">
                                         <span>Trạng thái venue</span>
-                                        <Badge variant={overview.venue.status === 'ACTIVE' ? 'success' : 'warning'}>
-                                            {overview.venue.status}
+                                        <Badge variant={venue.status === 'ACTIVE' ? 'success' : 'warning'}>
+                                            {venue.status}
                                         </Badge>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>Sân đang hoạt động</span>
                                         <span className="font-medium text-slate-900">
-                                            {overview.venue.activeCourtCount}/{overview.venue.totalCourtCount}
+                                            {venue.activeCourtCount}/{venue.totalCourtCount}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">

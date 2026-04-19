@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/client';
 import { Button } from '../../components/ui/Button';
 
+const RESEND_COOLDOWN_UNTIL_KEY = 'resendCooldownUntil';
+
 export function VerifyOtp() {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [error, setError] = useState('');
@@ -10,6 +12,11 @@ export function VerifyOtp() {
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
     const [countdown, setCountdown] = useState(() => {
+        const storedUntil = Number(sessionStorage.getItem(RESEND_COOLDOWN_UNTIL_KEY));
+        if (Number.isFinite(storedUntil) && storedUntil > Date.now()) {
+            return Math.ceil((storedUntil - Date.now()) / 1000);
+        }
+
         const storedCountdown = Number(sessionStorage.getItem('resendCooldownSeconds'));
         return Number.isFinite(storedCountdown) && storedCountdown > 0 ? storedCountdown : 0;
     });
@@ -24,6 +31,7 @@ export function VerifyOtp() {
 
         if (typeof resendCooldownSeconds === 'number') {
             sessionStorage.setItem('resendCooldownSeconds', String(resendCooldownSeconds));
+            sessionStorage.setItem(RESEND_COOLDOWN_UNTIL_KEY, String(Date.now() + resendCooldownSeconds * 1000));
             setCountdown(resendCooldownSeconds);
         }
 
@@ -38,10 +46,15 @@ export function VerifyOtp() {
         sessionStorage.removeItem('pendingEmail');
         sessionStorage.removeItem('otpHint');
         sessionStorage.removeItem('resendCooldownSeconds');
+        sessionStorage.removeItem(RESEND_COOLDOWN_UNTIL_KEY);
     };
 
     const getErrorCode = (err: any) => err?.response?.data?.error?.code || err?.response?.data?.error;
     const getErrorDetails = (err: any) => err?.response?.data?.error?.details;
+
+    useEffect(() => {
+        inputRefs.current[0]?.focus();
+    }, []);
 
     useEffect(() => {
         if (!email) {
@@ -54,6 +67,9 @@ export function VerifyOtp() {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
             return () => clearTimeout(timer);
         }
+
+        sessionStorage.removeItem('resendCooldownSeconds');
+        sessionStorage.removeItem(RESEND_COOLDOWN_UNTIL_KEY);
     }, [countdown]);
 
     const handleChange = (index: number, value: string) => {
@@ -73,6 +89,23 @@ export function VerifyOtp() {
         if (e.key === 'Backspace' && !otp[index] && index > 0) {
             inputRefs.current[index - 1]?.focus();
         }
+    };
+
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        if (!pasted) {
+            return;
+        }
+
+        e.preventDefault();
+        const nextOtp = pasted.split('');
+        while (nextOtp.length < 6) {
+            nextOtp.push('');
+        }
+
+        setOtp(nextOtp);
+        const lastFilledIndex = Math.min(pasted.length - 1, 5);
+        inputRefs.current[lastFilledIndex]?.focus();
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -104,6 +137,7 @@ export function VerifyOtp() {
                 setOtp(['', '', '', '', '', '']);
                 sessionStorage.removeItem('otpHint');
                 sessionStorage.setItem('resendCooldownSeconds', '0');
+                sessionStorage.removeItem(RESEND_COOLDOWN_UNTIL_KEY);
                 setCountdown(0);
             } else if (errorCode === 'EMAIL_ALREADY_VERIFIED') {
                 clearOtpSession();
@@ -139,6 +173,7 @@ export function VerifyOtp() {
                 const remainingSeconds = Number(errorDetails?.remainingSeconds);
                 if (Number.isFinite(remainingSeconds) && remainingSeconds > 0) {
                     sessionStorage.setItem('resendCooldownSeconds', String(remainingSeconds));
+                    sessionStorage.setItem(RESEND_COOLDOWN_UNTIL_KEY, String(Date.now() + remainingSeconds * 1000));
                     setCountdown(remainingSeconds);
                 }
                 setError('Bạn vừa yêu cầu OTP gần đây. Vui lòng chờ thêm để gửi lại.');
@@ -193,12 +228,17 @@ export function VerifyOtp() {
                         <input
                             key={index}
                             ref={(el) => (inputRefs.current[index] = el)}
+                            id={`otp-digit-${index + 1}`}
+                            name={`otpDigit${index + 1}`}
+                            aria-label={`OTP digit ${index + 1}`}
                             type="text"
                             inputMode="numeric"
                             maxLength={1}
                             value={digit}
                             onChange={(e) => handleChange(index, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(index, e)}
+                            onPaste={handlePaste}
+                            autoComplete="one-time-code"
                             className="w-12 h-12 text-center text-2xl font-semibold border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                     ))}
@@ -222,6 +262,20 @@ export function VerifyOtp() {
                         Gửi lại mã
                     </button>
                 )}
+            </p>
+
+            <p className="mt-4 text-sm text-gray-500">
+                Sai email hoặc muốn bắt đầu lại?{' '}
+                <button
+                    type="button"
+                    onClick={() => {
+                        clearOtpSession();
+                        navigate('/auth/register');
+                    }}
+                    className="text-primary hover:underline"
+                >
+                    Quay lại đăng ký
+                </button>
             </p>
         </div>
     );

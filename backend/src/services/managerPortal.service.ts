@@ -54,6 +54,7 @@ export interface ManagerContextDTO {
         contactEmail: string;
         contactName: string | null;
     };
+    hasVenue: boolean;
     venue: {
         id: string;
         name: string;
@@ -63,7 +64,7 @@ export interface ManagerContextDTO {
         status: string;
         activeCourtCount: number;
         totalCourtCount: number;
-    };
+    } | null;
     subscription: {
         expiresAt: string | null;
         daysRemaining: number | null;
@@ -374,7 +375,11 @@ function ensureManagerWorkspace(workspace: ManagerWorkspace | null): asserts wor
     }
 }
 
-function buildManagerContext(workspace: ManagerWorkspace & { venue: NonNullable<ManagerWorkspace['venue']> }): ManagerContextDTO {
+function buildManagerContext(workspace: ManagerWorkspace): ManagerContextDTO {
+    if (!workspace.venue) {
+        throw new Error('MANAGER_WORKSPACE_NOT_FOUND');
+    }
+
     const activeCourtCount = workspace.venue.courts.filter((court) => court.isActive).length;
 
     return {
@@ -384,6 +389,7 @@ function buildManagerContext(workspace: ManagerWorkspace & { venue: NonNullable<
             contactEmail: workspace.user.email,
             contactName: workspace.user.name,
         },
+        hasVenue: true,
         venue: {
             id: workspace.venue.id,
             name: workspace.venue.name,
@@ -395,6 +401,20 @@ function buildManagerContext(workspace: ManagerWorkspace & { venue: NonNullable<
             totalCourtCount: workspace.venue.courts.length,
         },
         subscription: getSubscriptionStatus(workspace.subscriptionExpiresAt, activeCourtCount),
+    };
+}
+
+function buildManagerContextWithoutVenue(workspace: ManagerWorkspace): ManagerContextDTO {
+    return {
+        manager: {
+            id: workspace.id,
+            displayName: workspace.displayName,
+            contactEmail: workspace.user.email,
+            contactName: workspace.user.name,
+        },
+        hasVenue: false,
+        venue: null,
+        subscription: getSubscriptionStatus(workspace.subscriptionExpiresAt, 0),
     };
 }
 
@@ -497,13 +517,21 @@ function validateSchedulesInput(schedules: ScheduleInput[]): void {
 
 export async function getManagerContext(userId: string): Promise<ManagerContextDTO> {
     const workspace = await getManagerWorkspace(userId);
-    ensureManagerWorkspace(workspace);
+    if (!workspace) {
+        throw new Error('MANAGER_NOT_FOUND');
+    }
+
+    if (!workspace.venue) {
+        return buildManagerContextWithoutVenue(workspace);
+    }
+
     return buildManagerContext(workspace);
 }
 
 export async function getManagerOverview(userId: string, dateInput?: string): Promise<ManagerOverviewDTO> {
     const workspace = await getManagerWorkspace(userId);
     ensureManagerWorkspace(workspace);
+    const venueWorkspace = workspace;
 
     const selectedDate = dateInput || getCurrentVnDateString();
     const bookingDate = parseDateOnly(selectedDate);
@@ -513,7 +541,7 @@ export async function getManagerOverview(userId: string, dateInput?: string): Pr
             where: {
                 date: bookingDate,
                 court: {
-                    venueId: workspace.venue.id,
+                    venueId: venueWorkspace.venue.id,
                 },
             },
             select: {
@@ -537,7 +565,7 @@ export async function getManagerOverview(userId: string, dateInput?: string): Pr
             where: {
                 date: bookingDate,
                 court: {
-                    venueId: workspace.venue.id,
+                    venueId: venueWorkspace.venue.id,
                 },
             },
             select: {
@@ -550,8 +578,8 @@ export async function getManagerOverview(userId: string, dateInput?: string): Pr
         }),
     ]);
 
-    const hours = formatTimelineHours(workspace.venue.schedules, selectedDate);
-    const context = buildManagerContext(workspace);
+    const hours = formatTimelineHours(venueWorkspace.venue.schedules, selectedDate);
+    const context = buildManagerContext(venueWorkspace);
 
     const stats = bookings.reduce(
         (accumulator, booking) => {
@@ -587,7 +615,7 @@ export async function getManagerOverview(userId: string, dateInput?: string): Pr
         }
     );
 
-    const courts = workspace.venue.courts.map((court) => {
+    const courts = venueWorkspace.venue.courts.map((court) => {
         const bookingBlocks = bookings
             .filter((booking) => booking.courtId === court.id)
             .map((booking) => ({
@@ -640,7 +668,7 @@ export async function getManagerOverview(userId: string, dateInput?: string): Pr
         stats,
         hours,
         courts,
-        upcomingHolidays: workspace.venue.holidays
+        upcomingHolidays: venueWorkspace.venue.holidays
             .filter((holiday) => holiday.date >= bookingDate)
             .slice(0, 5)
             .map((holiday) => ({
